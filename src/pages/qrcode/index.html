@@ -1,0 +1,35 @@
+<!DOCTYPE html>
+<html>
+<head>
+  <title>LocalShare - QR Code</title>
+  <link rel="stylesheet" href="style.css">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+</head>
+<body>
+  <div class="qrcode-container">
+    <h2>Scan to Open LocalShare</h2>
+    <div id="qrcode-display"></div>
+    <p id="server-url"></p>
+    <p class="info">Scan this code with your mobile device to access LocalShare</p>
+  </div>
+
+  <script>
+    // The QR code will be generated and injected by the main process
+    // This is a placeholder for the browser environment
+    const urlParams = new URLSearchParams(window.location.search);
+    const url = urlParams.get('url') || 'http://localhost:5199';
+    const serverUrl = document.getElementById('server-url');
+    serverUrl.textContent = url;
+
+    // If we're in the browser environment and QRCode library is available
+    if (typeof QRCode !== 'undefined') {
+      const qrDisplay = document.getElementById('qrcode-display');
+      new QRCode(qrDisplay, {
+        text: url,
+        width: 200,
+        height: 200
+      });
+    }
+  </script>
+</body>
+</html>

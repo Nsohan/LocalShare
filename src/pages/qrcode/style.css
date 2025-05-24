@@ -1,0 +1,56 @@
+body {
+  font-family: 'Segoe UI', Arial, sans-serif;
+  background-color: #f5f5f5;
+  padding: 0;
+  margin: 0;
+  display: flex;
+  justify-content: center;
+  align-items: center;
+  min-height: 100vh;
+}
+
+.qrcode-container {
+  background-color: white;
+  border-radius: 8px;
+  box-shadow: 0 2px 10px rgba(0, 0, 0, 0.1);
+  padding: 25px;
+  text-align: center;
+  width: 280px;
+}
+
+h2 {
+  color: #2c3e50;
+  margin-top: 0;
+  margin-bottom: 20px;
+  font-size: 1.2rem;
+}
+
+#qrcode-display {
+  margin: 0 auto;
+  width: 200px;
+  height: 200px;
+  background-color: #f9f9f9;
+  padding: 10px;
+  border-radius: 4px;
+  display: flex;
+  justify-content: center;
+  align-items: center;
+}
+
+#qrcode-display img {
+  max-width: 100%;
+  height: auto;
+}
+
+#server-url {
+  margin: 15px 0;
+  word-break: break-all;
+  color: #3498db;
+  font-weight: bold;
+}
+
+.info {
+  color: #7f8c8d;
+  font-size: 0.9rem;
+  margin-top: 20px;
+}

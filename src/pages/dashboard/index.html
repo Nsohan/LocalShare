@@ -1,0 +1,30 @@
+<!DOCTYPE html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>LocalShare Dashboard</title>
+    <link rel="stylesheet" href="style.css" />
+  </head>
+  <body>
+    <div class="container">
+      <h1>LocalShare Dashboard</h1>
+      <div class="tab-container">
+        <button class="tab-button active" data-tab="send">Send</button>
+        <button class="tab-button" data-tab="received">Received</button>
+      </div>
+      <div class="tab-content" id="send">
+        <h2>Sent Files</h2>
+        <button id="removeAllSentBtn">Remove All</button>
+        <ul id="sentFilesList" class="file-list"></ul>
+      </div>
+      <div class="tab-content" id="received" style="display: none">
+        <h2>Received Files</h2>
+        <button id="removeAllReceivedBtn">Remove All</button>
+        <ul id="receivedFilesList" class="file-list"></ul>
+      </div>
+      <button id="settingsBtn">Settings</button>
+    </div>
+    <script src="script.js"></script>
+  </body>
+</html>

@@ -1,0 +1,111 @@
+body {
+  font-family: Arial, sans-serif;
+  margin: 0;
+  padding: 0;
+  background-color: #f4f4f4;
+}
+
+.container {
+  max-width: 800px;
+  margin: 20px auto;
+  padding: 20px;
+  text-align: center;
+}
+
+h1 {
+  color: #333;
+}
+
+.tab-container {
+  margin-bottom: 20px;
+}
+
+.tab-button {
+  padding: 10px 20px;
+  font-size: 16px;
+  cursor: pointer;
+  background-color: #007bff;
+  color: white;
+  border: none;
+  border-radius: 4px 4px 0 0;
+  margin-right: 5px;
+}
+
+.tab-button.active {
+  background-color: #0056b3;
+}
+
+.tab-content {
+  background-color: white;
+  padding: 20px;
+  border-radius: 0 0 4px 4px;
+  box-shadow: 0 2px 4px rgba(0, 0, 0, 0.1);
+}
+
+.file-list {
+  list-style: none;
+  padding: 0;
+  margin: 20px 0;
+}
+
+.file-item {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  padding: 10px;
+  border-bottom: 1px solid #ddd;
+}
+
+.file-info {
+  text-align: left;
+}
+
+.file-name {
+  display: block;
+  font-weight: bold;
+}
+
+.file-details {
+  display: block;
+  font-size: 0.9em;
+  color: #666;
+}
+
+.remove-btn {
+  padding: 5px 10px;
+  font-size: 14px;
+  background-color: #dc3545;
+  color: white;
+  border: none;
+  border-radius: 4px;
+  cursor: pointer;
+}
+
+.remove-btn:hover {
+  background-color: #c82333;
+}
+
+button {
+  padding: 10px 20px;
+  font-size: 16px;
+  cursor: pointer;
+  background-color: #007bff;
+  color: white;
+  border: none;
+  border-radius: 4px;
+  margin: 10px;
+}
+
+button:hover {
+  background-color: #0056b3;
+}
+
+#removeAllSentBtn,
+#removeAllReceivedBtn {
+  background-color: #dc3545;
+}
+
+#removeAllSentBtn:hover,
+#removeAllReceivedBtn:hover {
+  background-color: #c82333;
+}

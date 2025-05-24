@@ -1,0 +1,46 @@
+<!DOCTYPE html>
+<html>
+  <head>
+    <title>LocalShare - Share Files Easily</title>
+    <link rel="stylesheet" href="style.css" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  </head>
+  <body>
+    <div class="container">
+      <header>
+        <h1>LocalShare</h1>
+        <p class="tagline">Simple local file sharing over your network</p>
+      </header>
+
+      <div class="file-container" id="shared-file">
+        <p>Loading file information...</p>
+      </div>
+
+      <div class="controls">
+        <button id="show-qr" class="btn primary">Show QR Code</button>
+        <button id="refresh-btn" class="btn">Refresh Files</button>
+      </div>
+
+      <div class="instructions">
+        <h2>How to Share Files</h2>
+        <ol>
+          <li>Right-click a file in File Explorer</li>
+          <li>Select "Send to" and choose "LocalShare"</li>
+          <li>The file will appear here for download</li>
+          <li>Use the QR code to access from your mobile device</li>
+        </ol>
+      </div>
+
+      <footer>
+        <div class="footer-links">
+          <a href="#" id="about-link">About</a>
+          <span>|</span>
+          <a href="#" id="restart-server">Restart Server</a>
+        </div>
+        <p class="copyright">&copy; 2025 Nasimul Hoque Sohan</p>
+      </footer>
+    </div>
+
+    <script src="script.js"></script>
+  </body>
+</html>

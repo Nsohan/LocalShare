@@ -1,0 +1,48 @@
+<!DOCTYPE html>
+<html>
+  <head>
+    <title>About LocalShare</title>
+    <link rel="stylesheet" href="style.css" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  </head>
+  <body>
+    <div class="about-container">
+      <h2>LocalShare</h2>
+
+      <div class="logo-container">
+        <img
+          id="app-logo"
+          src="../../../build/icon.ico"
+          alt="LocalShare Logo"
+        />
+      </div>
+
+      <div class="info-section">
+        <p><strong>Version:</strong> <span id="app-version">1.0.0</span></p>
+        <p><strong>Owner:</strong> Nasimul Hoque Sohan</p>
+        <p><strong>Email:</strong> nhsohan3@gmail.com</p>
+      </div>
+
+      <div class="description">
+        <p>
+          A simple local file sharing and server tool to easily share files
+          across your network.
+        </p>
+      </div>
+
+      <footer>
+        <p>Copyright &copy; 2025 Nasimul Hoque Sohan</p>
+        <p>All rights reserved</p>
+      </footer>
+    </div>
+
+    <script>
+      // If we're in an Electron environment, we can get the actual app version
+      if (window.electron) {
+        window.electron.getAppInfo().then((info) => {
+          document.getElementById("app-version").textContent = info.version;
+        });
+      }
+    </script>
+  </body>
+</html>
