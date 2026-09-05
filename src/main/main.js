@@ -12,6 +12,7 @@ const {
 } = require("electron");
 const path = require("path");
 const fs = require("fs");
+const os = require("os");
 const cp = require("child_process");
 const logger = require("../config/logger");
 
@@ -595,8 +596,11 @@ if (!gotTheLock) {
       }
       parsedUrl.searchParams.set("pc", os.hostname());
 
+      logger.info(`devices:poll-check fetching: ${parsedUrl.toString()}`);
+
       const controller = new AbortController();
-      const timeoutId = setTimeout(() => controller.abort(), 950);
+      // Allow up to 25s for mobile user to enter PIN in popup dialog
+      const timeoutId = setTimeout(() => controller.abort(), 25000);
 
       const res = await fetch(parsedUrl.toString(), {
         method: "GET",
@@ -609,6 +613,7 @@ if (!gotTheLock) {
       });
 
       clearTimeout(timeoutId);
+      logger.info(`devices:poll-check response status: ${res.status}`);
 
       const contentType = res.headers.get("content-type") || "";
       let data = null;
@@ -617,6 +622,7 @@ if (!gotTheLock) {
       if (contentType.includes("application/json")) {
         try {
           data = await res.json();
+          logger.info(`devices:poll-check JSON body:`, data);
         } catch (e) {
           text = await res.text();
         }
@@ -684,13 +690,14 @@ if (!gotTheLock) {
         message: `HTTP ${res.status}: Waiting for authorization...`,
       };
     } catch (err) {
-      if (err.name === "AbortError") {
-        return { connected: false, error: "timeout", message: "Connecting..." };
+      logger.error("devices:poll-check error:", err);
+      if (err.name === "AbortError" || err.message?.includes("aborted")) {
+        return { connected: false, error: "timeout", message: "Waiting for PIN entry on phone..." };
       }
       return {
         connected: false,
         error: err.code || err.message,
-        message: "Connecting to mobile server...",
+        message: `${err.message || "Connection failed"}`,
       };
     }
   });

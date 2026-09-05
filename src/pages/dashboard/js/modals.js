@@ -59,6 +59,7 @@ function openAddDeviceModal() {
   isPairing = false;
 
   if (pairingPollInterval) {
+    clearTimeout(pairingPollInterval);
     clearInterval(pairingPollInterval);
     pairingPollInterval = null;
   }
@@ -74,6 +75,7 @@ function openAddDeviceModal() {
 function closeAddDeviceModal() {
   const addDeviceModal = document.getElementById("addDeviceModal");
   if (pairingPollInterval) {
+    clearTimeout(pairingPollInterval);
     clearInterval(pairingPollInterval);
     pairingPollInterval = null;
   }
@@ -211,10 +213,16 @@ async function startPairingWorkflow(rawUrl, customName) {
     }
   }
 
-  await pollStep();
-  if (isPairing) {
-    pairingPollInterval = setInterval(pollStep, 1000);
-  }
+  // Sequential polling loop - awaits each step (allowing time for mobile popup)
+  (async function runPollLoop() {
+    while (isPairing) {
+      await pollStep();
+      if (!isPairing) break;
+      await new Promise((resolve) => {
+        pairingPollInterval = setTimeout(resolve, 1000);
+      });
+    }
+  })();
 }
 
 function initModals() {
