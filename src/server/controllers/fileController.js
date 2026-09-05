@@ -5,7 +5,6 @@ const fs = require('fs');
 const path = require('path');
 const os = require('os');
 const multer = require('multer');
-const notifier = require('node-notifier');
 const { formatFileSize } = require('../utils');
 
 // Upload destination directory
@@ -132,25 +131,6 @@ function uploadFiles(req, res) {
       dateAdded: new Date().toISOString()
     };
   });
-
-  // Notify desktop only if running standalone (no Electron parent)
-  if (!process.send && process.env.NOTIFICATIONS !== "false") {
-    try {
-      const fileCount = savedFiles.length;
-      const title = 'LocalShare - File Received';
-      const message = fileCount === 1
-        ? `Received "${savedFiles[0].name}" (${savedFiles[0].size})`
-        : `Received ${fileCount} files in Downloads/LocalShare`;
-
-      notifier.notify({
-        title,
-        message,
-        icon: path.join(__dirname, '../../../icon.png')
-      });
-    } catch (err) {
-      console.error('Notification error:', err);
-    }
-  }
 
   // Send IPC message to parent Electron process if running
   if (process.send) {

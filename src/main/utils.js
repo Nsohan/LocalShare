@@ -48,12 +48,16 @@ function filterValidFiles(args) {
 
     try {
       const resolvedPath = path.resolve(arg).toLowerCase();
+      const baseName = path.basename(resolvedPath).toLowerCase();
 
-      // Never auto-share electron executable, server helpers, or files inside node_modules (e.g. electronmon hooks)
+      // Never auto-share electron/localshare executable, runtime helpers, or files inside node_modules
       if (
         resolvedPath === execPath ||
-        resolvedPath.includes("pcsrv.exe") ||
-        resolvedPath.includes("node_modules")
+        baseName === "localshare.exe" ||
+        baseName === "electron.exe" ||
+        baseName === "pcsrv.exe" ||
+        resolvedPath.includes("node_modules") ||
+        resolvedPath.endsWith("localshare.exe")
       ) {
         continue;
       }

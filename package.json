@@ -44,7 +44,7 @@
       "shortcutName": "LocalShare",
       "oneClick": false,
       "allowToChangeInstallationDirectory": true,
-      "menuCategory": true,
+      "menuCategory": false,
       "include": "installer.nsh"
     },
     "mac": null,

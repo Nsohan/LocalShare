@@ -2,7 +2,6 @@
  * API controller for handling API requests
  */
 const path = require('path');
-const notifier = require('node-notifier');
 
 /**
  * Get list of shared files
@@ -35,12 +34,6 @@ function sendNotification(req, res) {
       type: "custom-notification",
       title,
       message,
-    });
-  } else {
-    notifier.notify({
-      title,
-      message,
-      icon: path.join(__dirname, '../../../icon.png')
     });
   }
 

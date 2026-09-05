@@ -19,7 +19,10 @@ const logger = require("../config/logger");
 const { createTray, updateTrayMenu } = require("./tray");
 const { filterValidFiles, getLocalIP } = require("./utils");
 const { getConfig, setConfig, updateConfig } = require("../config/config");
-const { showDashboardWindow, getDashboardWindow } = require("./windows/dashboard");
+const {
+  showDashboardWindow,
+  getDashboardWindow,
+} = require("./windows/dashboard");
 
 // Make sure app is ready before requiring config
 let configReady = false;
@@ -90,7 +93,9 @@ function formatFileSize(bytes) {
  */
 function getFormattedFiles(filePaths = sharedFiles) {
   return filePaths
-    .filter((filePath) => typeof filePath === "string" && fs.existsSync(filePath))
+    .filter(
+      (filePath) => typeof filePath === "string" && fs.existsSync(filePath),
+    )
     .map((filePath, index) => {
       try {
         const stats = fs.statSync(filePath);
@@ -102,7 +107,9 @@ function getFormattedFiles(filePaths = sharedFiles) {
           size: formatFileSize(stats.size),
           sizeBytes: stats.size,
           extension: ext || "file",
-          dateAdded: stats.mtime ? stats.mtime.toISOString() : new Date().toISOString(),
+          dateAdded: stats.mtime
+            ? stats.mtime.toISOString()
+            : new Date().toISOString(),
         };
       } catch (err) {
         return {
@@ -205,12 +212,12 @@ async function startServer(filePaths = [], port = null) {
 
     logger.info(
       `Forking new server process on port ${serverPort}:`,
-      serverPath
+      serverPath,
     );
 
     // Make sure file paths are strings
     const sanitizedPaths = filePaths.filter(
-      (p) => typeof p === "string" && fs.existsSync(p)
+      (p) => typeof p === "string" && fs.existsSync(p),
     );
     logger.debug("Sanitized file paths:", sanitizedPaths);
 
@@ -266,16 +273,26 @@ async function startServer(filePaths = [], port = null) {
         if (fileCount > 0) {
           showAppNotification({
             title: "LocalShare - File Received",
-            body: fileCount === 1
-              ? `Received "${msg.files[0].name}" (${msg.files[0].size})`
-              : `Received ${fileCount} files in Downloads/LocalShare`,
+            body:
+              fileCount === 1
+                ? `Received "${msg.files[0].name}" (${msg.files[0].size})`
+                : `Received ${fileCount} files in Downloads/LocalShare`,
           });
         }
-      } else if (msg && msg.type === "clipboard-copy" && typeof msg.text === "string") {
-        logger.info("Received remote clipboard text (length:", msg.text.length, ")");
+      } else if (
+        msg &&
+        msg.type === "clipboard-copy" &&
+        typeof msg.text === "string"
+      ) {
+        logger.info(
+          "Received remote clipboard text (length:",
+          msg.text.length,
+          ")",
+        );
         clipboard.writeText(msg.text);
 
-        const preview = msg.text.length > 60 ? msg.text.slice(0, 60) + "..." : msg.text;
+        const preview =
+          msg.text.length > 60 ? msg.text.slice(0, 60) + "..." : msg.text;
         showAppNotification({
           title: "LocalShare - Copied to Clipboard",
           body: `"${preview}" (Ready to Ctrl+V)`,
@@ -391,10 +408,14 @@ if (!gotTheLock) {
     logger.info("Second instance detected with args:", commandLine);
 
     // Show main window when second instance is launched
-    showDashboardWindow();
+    const win = showDashboardWindow();
+    if (win && !win.isDestroyed()) {
+      win.webContents.send("dashboard:switch-tab", "files");
+    }
 
     try {
-      const newFiles = filterValidFiles(commandLine);
+      const rawArgs = Array.isArray(commandLine) ? commandLine.slice(1) : [];
+      const newFiles = filterValidFiles(rawArgs);
 
       if (newFiles.length > 0) {
         logger.info("New files to share:", newFiles);
@@ -457,24 +478,38 @@ if (!gotTheLock) {
   });
 
   // Remove single file
-  ipcMain.on("dashboard:remove-file", async (event, { path: filePath, id, tab }) => {
-    try {
-      if (tab === "send" || !tab) {
-        await removeSharedFile(filePath, id);
-      } else if (tab === "received") {
-        const received = getConfig("receivedFiles") || [];
-        const updated = received.filter((item, index) => index !== id && item.path !== filePath);
-        setConfig("receivedFiles", updated);
-        broadcastDashboardState();
+  ipcMain.on(
+    "dashboard:remove-file",
+    async (event, { path: filePath, id, tab }) => {
+      try {
+        if (tab === "send" || !tab) {
+          await removeSharedFile(filePath, id);
+        } else if (tab === "received") {
+          const received = getConfig("receivedFiles") || [];
+          const updated = received.filter(
+            (item, index) => index !== id && item.path !== filePath,
+          );
+          setConfig("receivedFiles", updated);
+          broadcastDashboardState();
+        }
+      } catch (err) {
+        logger.error("Error removing file:", err);
       }
-    } catch (err) {
-      logger.error("Error removing file:", err);
-    }
-  });
+    },
+  );
 
   ipcMain.on("remove-file", async (event, data) => {
-    const filePath = data && data.path ? data.path : (typeof data.id === "number" && sharedFiles[data.id] ? sharedFiles[data.id] : null);
-    ipcMain.emit("dashboard:remove-file", event, { path: filePath, id: data.id, tab: data.tab });
+    const filePath =
+      data && data.path
+        ? data.path
+        : typeof data.id === "number" && sharedFiles[data.id]
+          ? sharedFiles[data.id]
+          : null;
+    ipcMain.emit("dashboard:remove-file", event, {
+      path: filePath,
+      id: data.id,
+      tab: data.tab,
+    });
   });
 
   // Remove all files
@@ -664,7 +699,7 @@ if (!gotTheLock) {
           addFilesToShare,
           removeSharedFile,
           broadcastDashboardState,
-        }
+        },
       );
 
       // Check if dashboard should be opened at start
@@ -722,5 +757,3 @@ module.exports = {
   navigateDashboard,
   showAppNotification,
 };
-
-
