@@ -1,9 +1,9 @@
 !macro customInstall
     CreateDirectory "$SMPROGRAMS\LocalShare"
-    CreateShortCut "$SMPROGRAMS\LocalShare\LocalShare.lnk" "$INSTDIR\LocalShare.exe" "" "$INSTDIR\icon.ico"
+    CreateShortCut "$SMPROGRAMS\LocalShare\LocalShare.lnk" "$INSTDIR\LocalShare.exe" "" "$INSTDIR\LocalShare.exe" 0
 
     ; Create SendTo shortcut
-    CreateShortCut "$SENDTO\Send with LocalShare.lnk" "$INSTDIR\LocalShare.exe" "" "$INSTDIR\icon.ico"
+    CreateShortCut "$SENDTO\Send with LocalShare.lnk" "$INSTDIR\LocalShare.exe" "" "$INSTDIR\LocalShare.exe" 0
 !macroend
 
 !macro customUninstall
