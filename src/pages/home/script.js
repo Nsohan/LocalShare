@@ -17,6 +17,11 @@ const paneClipboard = document.getElementById("paneClipboard");
 const clipboardInput = document.getElementById("clipboardInput");
 const sendClipboardBtn = document.getElementById("sendClipboardBtn");
 
+const panePair = document.getElementById("panePair");
+const mobilePinInput = document.getElementById("mobilePinInput");
+const submitMobilePinBtn = document.getElementById("submitMobilePinBtn");
+const pairSuccessMsg = document.getElementById("pairSuccessMsg");
+
 const downloadBadge = document.getElementById("downloadBadge");
 const filesContainer = document.getElementById("filesContainer");
 const downloadEmpty = document.getElementById("downloadEmpty");
@@ -288,14 +293,53 @@ tabButtons.forEach((btn) => {
     paneDownload.classList.toggle("active", target === "download");
     paneUpload.classList.toggle("active", target === "upload");
     paneClipboard.classList.toggle("active", target === "clipboard");
+    if (panePair) panePair.classList.toggle("active", target === "pair");
 
     if (target === "download") {
       loadSharedFiles();
     } else if (target === "clipboard") {
       clipboardInput.focus();
+    } else if (target === "pair") {
+      if (mobilePinInput) mobilePinInput.focus();
     }
   });
 });
+
+// Submit 6-digit key from mobile
+if (submitMobilePinBtn) {
+  submitMobilePinBtn.addEventListener("click", () => {
+    const key = mobilePinInput ? mobilePinInput.value.trim() : "";
+    if (!key || key.length !== 6) {
+      showToast("Please enter a valid 6-digit key");
+      return;
+    }
+
+    submitMobilePinBtn.disabled = true;
+    submitMobilePinBtn.textContent = "Verifying with PC...";
+
+    fetch("/api/pair", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ key }),
+    })
+      .then((res) => res.json())
+      .then((data) => {
+        submitMobilePinBtn.disabled = false;
+        submitMobilePinBtn.textContent = "Authorize & Pair Device";
+        if (data.success) {
+          if (pairSuccessMsg) pairSuccessMsg.style.display = "block";
+          showToast("✓ Key verified! Phone paired with PC.");
+        } else {
+          showToast(data.message || "Failed to verify key");
+        }
+      })
+      .catch((err) => {
+        submitMobilePinBtn.disabled = false;
+        submitMobilePinBtn.textContent = "Authorize & Pair Device";
+        showToast("Error connecting to PC server");
+      });
+  });
+}
 
 // Send Text to PC Clipboard
 if (sendClipboardBtn) {

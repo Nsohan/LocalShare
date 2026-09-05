@@ -45,6 +45,15 @@
             <span>Connect & QR</span>
           </button>
 
+          <button class="nav-item" data-view="devices">
+            <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+              <rect x="5" y="2" width="14" height="20" rx="2" ry="2"></rect>
+              <line x1="12" y1="18" x2="12.01" y2="18"></line>
+            </svg>
+            <span>Your devices</span>
+            <span class="nav-badge" id="navDevicesBadge">0</span>
+          </button>
+
           <button class="nav-item" data-view="api">
             <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
               <polyline points="16 18 22 12 16 6"></polyline>
@@ -295,6 +304,116 @@
           </section>
 
           <!-- ==============================================
+               VIEW: YOUR DEVICES
+               ============================================== -->
+          <section class="view-panel" id="view-devices">
+            <div class="devices-header-row">
+              <div class="devices-header-meta">
+                <h3 class="section-title">Your Paired Devices</h3>
+                <p class="section-subtitle">Manage and communicate directly with your mobile phones and local network servers.</p>
+              </div>
+              <div class="devices-header-actions">
+                <button class="btn btn-secondary btn-sm" id="devicesViewApiHelpBtn" title="View Server Response JSON Format">
+                  <span class="help-bubble-icon">?</span>
+                  <span>JSON Format</span>
+                </button>
+                <button class="btn btn-primary" id="openAddDeviceModalBtn">
+                  <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                    <line x1="12" y1="5" x2="12" y2="19"></line>
+                    <line x1="5" y1="12" x2="19" y2="12"></line>
+                  </svg>
+                  <span>Add Device</span>
+                </button>
+              </div>
+            </div>
+
+            <!-- Devices Quick Stats -->
+            <div class="stats-grid">
+              <div class="stat-card">
+                <div class="stat-icon-wrapper blue">
+                  <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                    <rect x="5" y="2" width="14" height="20" rx="2" ry="2"></rect>
+                    <line x1="12" y1="18" x2="12.01" y2="18"></line>
+                  </svg>
+                </div>
+                <div class="stat-data">
+                  <span class="stat-label">Total Devices</span>
+                  <span class="stat-value" id="statDevicesCount">0 Devices</span>
+                </div>
+              </div>
+
+              <div class="stat-card">
+                <div class="stat-icon-wrapper emerald">
+                  <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                    <path d="M22 11.08V12a10 10 0 1 1-5.93-9.14"></path>
+                    <polyline points="22 4 12 14.01 9 11.01"></polyline>
+                  </svg>
+                </div>
+                <div class="stat-data">
+                  <span class="stat-label">Active Connection</span>
+                  <span class="stat-value" id="statDevicesOnline">0 Online</span>
+                </div>
+              </div>
+
+              <div class="stat-card">
+                <div class="stat-icon-wrapper purple">
+                  <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                    <circle cx="12" cy="12" r="10"></circle>
+                    <path d="m4.93 4.93 4.24 4.24"></path>
+                    <path d="m14.83 9.17 4.24-4.24"></path>
+                    <path d="m14.83 14.83 4.24 4.24"></path>
+                    <path d="m9.17 14.83-4.24 4.24"></path>
+                  </svg>
+                </div>
+                <div class="stat-data">
+                  <span class="stat-label">Pairing Method</span>
+                  <span class="stat-value">6-Digit PIN</span>
+                </div>
+              </div>
+
+              <div class="stat-card">
+                <div class="stat-icon-wrapper amber">
+                  <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                    <path d="M5 12.55a11 11 0 0 1 14.08 0"></path>
+                    <path d="M1.42 9a16 16 0 0 1 21.16 0"></path>
+                    <path d="M8.53 16.11a6 6 0 0 1 6.95 0"></path>
+                  </svg>
+                </div>
+                <div class="stat-data">
+                  <span class="stat-label">Network</span>
+                  <span class="stat-value" id="statDevicesSubnet">Wi-Fi LAN</span>
+                </div>
+              </div>
+            </div>
+
+            <!-- Paired Devices Container -->
+            <div class="panel-card devices-panel-card">
+              <div class="devices-grid" id="devicesList">
+                <!-- Dynamically populated device cards -->
+              </div>
+
+              <!-- Empty State -->
+              <div class="empty-state" id="devicesEmptyState">
+                <div class="empty-icon-bubble">
+                  <svg width="36" height="36" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round">
+                    <rect x="5" y="2" width="14" height="20" rx="2" ry="2"></rect>
+                    <line x1="12" y1="18" x2="12.01" y2="18"></line>
+                  </svg>
+                </div>
+                <h3>No devices connected yet</h3>
+                <p>Add your mobile phone running a local server (e.g. <code>192.168.1.4:8000</code>) and pair it using a secure 6-digit key.</p>
+                <button class="btn btn-primary" id="emptyAddDeviceBtn">
+                  <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                    <line x1="12" y1="5" x2="12" y2="19"></line>
+                    <line x1="5" y1="12" x2="19" y2="12"></line>
+                  </svg>
+                  <span>Add Your First Device</span>
+                </button>
+              </div>
+            </div>
+          </section>
+
+          <!-- ==============================================
                VIEW 3: API EXPLORER
                ============================================== -->
           <section class="view-panel" id="view-api">
@@ -522,6 +641,215 @@
       <div class="toast" id="toast">
         <span class="toast-icon">✓</span>
         <span class="toast-message" id="toastMessage">Action completed</span>
+      </div>
+    </div>
+
+    <!-- Add Device Modal -->
+    <div class="modal-overlay" id="addDeviceModal" style="display: none;">
+      <div class="modal-card">
+        <div class="modal-header">
+          <div class="modal-title-wrap">
+            <div class="modal-icon-badge">
+              <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                <rect x="5" y="2" width="14" height="20" rx="2" ry="2"></rect>
+                <line x1="12" y1="18" x2="12.01" y2="18"></line>
+              </svg>
+            </div>
+            <div>
+              <h3 class="modal-title">Add New Device</h3>
+              <span class="modal-subtitle">Pair your mobile device server using a 6-digit key</span>
+            </div>
+          </div>
+          <div class="modal-header-actions">
+            <button type="button" class="modal-help-btn" id="togglePairingApiHelpBtn" title="View Server Response JSON Format Spec">?</button>
+            <button type="button" class="modal-close-btn" id="closeAddDeviceModalBtn" title="Close modal">&times;</button>
+          </div>
+        </div>
+
+        <form id="addDeviceForm" class="modal-body">
+          <!-- Step 1: Device URL -->
+          <div class="modal-field-group">
+            <label class="modal-field-label" for="deviceUrlInput">
+              <span>Device Server Local URL</span>
+              <span class="field-required">*</span>
+              <button type="button" class="inline-help-btn" id="inlineApiHelpBtn" title="View Server Response JSON Format">?</button>
+            </label>
+            <div class="url-input-group">
+              <span class="url-prefix-addon">http://</span>
+              <input
+                type="text"
+                id="deviceUrlInput"
+                class="url-addon-input"
+                placeholder="192.168.1.4:8000"
+                required
+                autocomplete="off"
+                spellcheck="false"
+              />
+            </div>
+            <span class="modal-field-hint">Enter your mobile device server address (e.g. <code>192.168.1.4:8000</code>)</span>
+          </div>
+
+          <!-- Optional Device Name -->
+          <div class="modal-field-group">
+            <label class="modal-field-label" for="deviceNameInput">
+              <span>Device Name</span>
+              <span class="field-optional">(Optional)</span>
+            </label>
+            <input
+              type="text"
+              id="deviceNameInput"
+              class="modal-input"
+              placeholder="e.g. My Phone, Pixel 8, Tablet"
+              autocomplete="off"
+            />
+          </div>
+
+          <!-- Step 2: 6-Digit Pairing Key -->
+          <div class="modal-field-group">
+            <div class="pin-section-header">
+              <label class="modal-field-label">
+                <span>6-Digit Pairing Key</span>
+              </label>
+              <button type="button" class="btn-link" id="regeneratePinBtn" title="Generate another PIN">
+                <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                  <polyline points="23 4 23 10 17 10"></polyline>
+                  <path d="M20.49 15a9 9 0 1 1-2.12-9.36L23 10"></path>
+                </svg>
+                <span>New Key</span>
+              </button>
+            </div>
+
+            <div class="pin-box">
+              <div class="pin-digits-wrap" id="pinDisplayWrapper">
+                <span class="pin-digit" id="pinDigit1">1</span>
+                <span class="pin-digit" id="pinDigit2">2</span>
+                <span class="pin-digit" id="pinDigit3">3</span>
+                <span class="pin-divider">&bull;</span>
+                <span class="pin-digit" id="pinDigit4">4</span>
+                <span class="pin-digit" id="pinDigit5">5</span>
+                <span class="pin-digit" id="pinDigit6">6</span>
+              </div>
+              <button type="button" class="btn btn-sm btn-secondary" id="copyPinBtn" title="Copy 6-digit key">
+                <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                  <rect x="9" y="9" width="13" height="13" rx="2" ry="2"></rect>
+                  <path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"></path>
+                </svg>
+                <span>Copy Key</span>
+              </button>
+            </div>
+            <span class="modal-field-hint">Add this 6-digit key to your phone. LocalShare will poll your phone's server every 1 second until confirmed.</span>
+          </div>
+
+          <!-- Step 3: Polling Status Indicator -->
+          <div class="polling-status-card" id="pollingStatusCard" style="display: none;">
+            <div class="polling-radar-wrap">
+              <div class="radar-ping"></div>
+              <div class="radar-core"></div>
+            </div>
+            <div class="polling-info">
+              <strong id="pollingStatusTitle">Connecting to device server...</strong>
+              <span id="pollingStatusSubtitle">Sending HTTP GET every 1 second. Please enter the key on your phone.</span>
+              <div class="polling-progress-row">
+                <span class="attempt-chip" id="pollingAttemptChip">Attempt #1</span>
+                <span class="polling-url-chip" id="pollingUrlChip">192.168.1.4:8000</span>
+              </div>
+            </div>
+          </div>
+
+          <!-- Error Feedback -->
+          <div class="modal-error-alert" id="modalErrorAlert" style="display: none;">
+            <span class="error-dot">!</span>
+            <span id="modalErrorText">Could not connect to device server.</span>
+          </div>
+
+          <div class="modal-actions">
+            <button type="button" class="btn btn-secondary" id="cancelPairingBtn">Cancel</button>
+            <button type="submit" class="btn btn-primary" id="startPairingBtn">
+              <svg class="btn-spinner" id="pairingBtnSpinner" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" style="display: none;">
+                <circle cx="12" cy="12" r="10" stroke-dasharray="32" stroke-linecap="round"></circle>
+              </svg>
+              <span id="startPairingBtnText">Start Pairing</span>
+            </button>
+          </div>
+        </form>
+      </div>
+    </div>
+
+    <!-- Dedicated Server Response JSON Format Spec Modal -->
+    <div class="modal-overlay" id="jsonFormatModal" style="display: none;">
+      <div class="modal-card modal-card-spec">
+        <div class="modal-header">
+          <div class="modal-title-wrap">
+            <div class="modal-icon-badge cyan">
+              <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                <polyline points="16 18 22 12 16 6"></polyline>
+                <polyline points="8 6 2 12 8 18"></polyline>
+              </svg>
+            </div>
+            <div>
+              <h3 class="modal-title">Device Server API Spec</h3>
+              <span class="modal-subtitle">Expected JSON formats for pairing with LocalShare</span>
+            </div>
+          </div>
+          <div class="modal-header-actions">
+            <button type="button" class="modal-close-btn" id="closeJsonFormatModalBtn" title="Close modal">&times;</button>
+          </div>
+        </div>
+
+        <div class="modal-body modal-spec-body">
+          <div class="api-poll-overview">
+            <div class="api-endpoint-badge">
+              <span class="method-tag">HTTP GET</span>
+              <span class="endpoint-text">/?key=&lt;6-digit&gt;&amp;pc=&lt;hostname&gt;</span>
+            </div>
+            <p class="api-spec-explainer">
+              LocalShare desktop polls your mobile server every <strong>1 second</strong>. Send the header <code>X-Pairing-Key: &lt;6-digit&gt;</code> and query param <code>?key=...</code>.
+            </p>
+          </div>
+
+          <!-- 1. Success Response -->
+          <div class="api-help-code-group">
+            <div class="code-title-row">
+              <span class="code-tag success">1. Success Response (Key Accepted) &bull; 200 OK</span>
+              <button type="button" class="btn-copy-code" id="copySuccessJsonBtn" title="Copy JSON">Copy JSON</button>
+            </div>
+            <pre class="api-json-pre"><code id="codeSuccessJson">{
+  "success": true,
+  "status": "connected",
+  "deviceName": "My Phone",
+  "message": "Device paired successfully"
+}</code></pre>
+          </div>
+
+          <!-- 2. Pending Response -->
+          <div class="api-help-code-group">
+            <div class="code-title-row">
+              <span class="code-tag pending">2. Pending Response (Waiting for Key) &bull; 202 or 200</span>
+              <button type="button" class="btn-copy-code" id="copyPendingJsonBtn" title="Copy JSON">Copy JSON</button>
+            </div>
+            <pre class="api-json-pre"><code id="codePendingJson">{
+  "success": false,
+  "status": "pending",
+  "message": "Waiting for key entry on phone"
+}</code></pre>
+          </div>
+
+          <!-- Footer tip -->
+          <div class="api-help-footer-tip">
+            <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+              <circle cx="12" cy="12" r="10"></circle>
+              <line x1="12" y1="16" x2="12" y2="12"></line>
+              <line x1="12" y1="8" x2="12.01" y2="8"></line>
+            </svg>
+            <span>Once your server returns <code>"success": true</code>, LocalShare instantly connects your device.</span>
+          </div>
+
+          <div class="modal-actions" style="margin-top: 6px;">
+            <button type="button" class="btn btn-primary" id="dismissJsonFormatModalBtn" style="width: 100%;">
+              Got it
+            </button>
+          </div>
+        </div>
       </div>
     </div>
 

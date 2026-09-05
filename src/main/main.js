@@ -134,6 +134,7 @@ function getDashboardState() {
   return {
     sentFiles: getFormattedFiles(),
     receivedFiles: getConfig("receivedFiles") || [],
+    devices: getConfig("devices") || [],
     serverInfo: {
       ip,
       port,
@@ -569,6 +570,190 @@ if (!gotTheLock) {
     const ip = getLocalIP();
     const url = `http://${ip}:${port}`;
     clipboard.writeText(url);
+  });
+
+  // ==========================
+  // Device Pairing & Polling IPC
+  // ==========================
+
+  // Poll device server to check if 6-digit key was entered and accepted
+  ipcMain.handle("devices:poll-check", async (event, { deviceUrl, pairingKey }) => {
+    if (!deviceUrl) {
+      return { connected: false, error: "Empty URL", message: "Enter device URL" };
+    }
+
+    let urlStr = deviceUrl.trim();
+    if (!/^https?:\/\//i.test(urlStr)) {
+      urlStr = `http://${urlStr}`;
+    }
+
+    try {
+      const parsedUrl = new URL(urlStr);
+      // Append pairing parameters if not already present
+      if (!parsedUrl.searchParams.has("key")) {
+        parsedUrl.searchParams.set("key", pairingKey);
+      }
+      parsedUrl.searchParams.set("pc", os.hostname());
+
+      const controller = new AbortController();
+      const timeoutId = setTimeout(() => controller.abort(), 950);
+
+      const res = await fetch(parsedUrl.toString(), {
+        method: "GET",
+        signal: controller.signal,
+        headers: {
+          Accept: "application/json, text/plain, */*",
+          "X-Pairing-Key": pairingKey,
+          "X-Device-Type": "desktop",
+        },
+      });
+
+      clearTimeout(timeoutId);
+
+      const contentType = res.headers.get("content-type") || "";
+      let data = null;
+      let text = "";
+
+      if (contentType.includes("application/json")) {
+        try {
+          data = await res.json();
+        } catch (e) {
+          text = await res.text();
+        }
+      } else {
+        text = await res.text();
+      }
+
+      // 2xx response
+      if (res.status >= 200 && res.status < 300) {
+        if (data) {
+          // If JSON explicitly marks pending or failure
+          if (
+            data.success === false ||
+            data.status === "error" ||
+            data.status === "pending" ||
+            data.paired === false ||
+            data.waiting === true
+          ) {
+            return {
+              connected: false,
+              status: res.status,
+              message: data.message || "Waiting for key entry on mobile...",
+            };
+          }
+
+          return {
+            connected: true,
+            status: res.status,
+            deviceName:
+              data.name ||
+              data.deviceName ||
+              data.hostname ||
+              data.model ||
+              data.device ||
+              null,
+            data,
+          };
+        }
+
+        const lowerText = text.toLowerCase().trim();
+        if (
+          lowerText.includes("wait") ||
+          lowerText.includes("pending") ||
+          lowerText.includes("unauthorized") ||
+          lowerText.includes("invalid") ||
+          lowerText.includes("not ready")
+        ) {
+          return {
+            connected: false,
+            status: res.status,
+            message: "Waiting for key entry on mobile...",
+          };
+        }
+
+        return {
+          connected: true,
+          status: res.status,
+          text,
+        };
+      }
+
+      return {
+        connected: false,
+        status: res.status,
+        message: `HTTP ${res.status}: Waiting for authorization...`,
+      };
+    } catch (err) {
+      if (err.name === "AbortError") {
+        return { connected: false, error: "timeout", message: "Connecting..." };
+      }
+      return {
+        connected: false,
+        error: err.code || err.message,
+        message: "Connecting to mobile server...",
+      };
+    }
+  });
+
+  // Save new paired device
+  ipcMain.handle("devices:save", async (event, newDevice) => {
+    try {
+      const devices = getConfig("devices") || [];
+      const filtered = devices.filter(
+        (d) => d.id !== newDevice.id && d.url !== newDevice.url,
+      );
+      const updated = [newDevice, ...filtered];
+      setConfig("devices", updated);
+      broadcastDashboardState();
+
+      showAppNotification({
+        title: "LocalShare - Device Connected",
+        body: `"${newDevice.name}" was successfully paired!`,
+      });
+
+      return { success: true, devices: updated };
+    } catch (err) {
+      logger.error("Error saving device:", err);
+      return { success: false, error: err.message };
+    }
+  });
+
+  // Remove paired device
+  ipcMain.handle("devices:remove", async (event, deviceId) => {
+    try {
+      const devices = getConfig("devices") || [];
+      const updated = devices.filter((d) => d.id !== deviceId);
+      setConfig("devices", updated);
+      broadcastDashboardState();
+      return { success: true, devices: updated };
+    } catch (err) {
+      logger.error("Error removing device:", err);
+      return { success: false, error: err.message };
+    }
+  });
+
+  // Test single device connection
+  ipcMain.handle("devices:test-connection", async (event, deviceUrl) => {
+    const start = Date.now();
+    try {
+      let urlStr = deviceUrl.trim();
+      if (!/^https?:\/\//i.test(urlStr)) urlStr = `http://${urlStr}`;
+      const controller = new AbortController();
+      const timeoutId = setTimeout(() => controller.abort(), 2500);
+      const res = await fetch(urlStr, { signal: controller.signal });
+      clearTimeout(timeoutId);
+      return {
+        online: res.status < 500,
+        status: res.status,
+        latencyMs: Date.now() - start,
+      };
+    } catch (err) {
+      return {
+        online: false,
+        error: err.message,
+        latencyMs: Date.now() - start,
+      };
+    }
   });
 
   // Open main dashboard window

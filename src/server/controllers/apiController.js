@@ -88,8 +88,63 @@ function copyToClipboard(req, res) {
   });
 }
 
+const authorizedPairingKeys = new Set();
+const os = require("os");
+
+/**
+ * Handle pairing check from remote device or desktop
+ */
+function handlePairCheck(req, res) {
+  const key = req.query.key || req.headers["x-pairing-key"];
+  if (!key) {
+    return res.status(400).json({ success: false, message: "Missing pairing key" });
+  }
+
+  const strKey = String(key).trim();
+  if (authorizedPairingKeys.has(strKey)) {
+    return res.json({
+      success: true,
+      status: "connected",
+      hostname: os.hostname(),
+      platform: os.platform(),
+      message: "Device paired successfully",
+    });
+  }
+
+  // Pending
+  return res.status(202).json({
+    success: false,
+    status: "pending",
+    message: "Waiting for key entry on phone",
+  });
+}
+
+/**
+ * Submit pairing key from phone
+ */
+function submitPairKey(req, res) {
+  const key = (req.body && req.body.key) || req.query.key;
+  if (!key) {
+    return res.status(400).json({ success: false, message: "Pairing key is required" });
+  }
+
+  const strKey = String(key).trim();
+  authorizedPairingKeys.add(strKey);
+
+  // Auto-expire pairing key after 5 minutes
+  setTimeout(() => authorizedPairingKeys.delete(strKey), 300000);
+
+  res.json({
+    success: true,
+    message: "Key accepted. Pair confirmed.",
+    key: strKey,
+  });
+}
+
 module.exports = {
   getSharedFiles,
   sendNotification,
   copyToClipboard,
+  handlePairCheck,
+  submitPairKey,
 };

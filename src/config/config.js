@@ -34,6 +34,7 @@ const DEFAULT_CONFIG = {
   notifications: true,
   lastFiles: [],
   receivedFiles: [],
+  devices: [],
   theme: "light",
 };
 

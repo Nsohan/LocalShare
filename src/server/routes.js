@@ -24,6 +24,8 @@ router.get("/api/notify", apiController.sendNotification);
 router.post("/api/clipboard", apiController.copyToClipboard);
 router.post("/api/text", apiController.copyToClipboard);
 router.get("/api/clipboard", apiController.copyToClipboard);
+router.get("/api/pair", apiController.handlePairCheck);
+router.post("/api/pair", apiController.submitPairKey);
 
 // Server Info Route
 router.get("/api/server-info", (req, res) => {
