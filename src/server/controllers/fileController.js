@@ -1,51 +1,106 @@
 /**
- * File controller for handling file download requests
+ * File controller for handling file download and upload requests
  */
 const fs = require('fs');
 const path = require('path');
+const os = require('os');
+const multer = require('multer');
 const notifier = require('node-notifier');
+const { formatFileSize } = require('../utils');
+
+// Upload destination directory
+const UPLOAD_DIR = path.join(os.homedir(), 'Downloads', 'LocalShare');
+try {
+  if (!fs.existsSync(UPLOAD_DIR)) {
+    fs.mkdirSync(UPLOAD_DIR, { recursive: true });
+  }
+} catch (e) {
+  console.error('Could not create upload directory:', e);
+}
+
+// Setup multer disk storage
+const storage = multer.diskStorage({
+  destination: function (req, file, cb) {
+    if (!fs.existsSync(UPLOAD_DIR)) {
+      fs.mkdirSync(UPLOAD_DIR, { recursive: true });
+    }
+    cb(null, UPLOAD_DIR);
+  },
+  filename: function (req, file, cb) {
+    let originalName = file.originalname;
+    try {
+      originalName = Buffer.from(file.originalname, 'latin1').toString('utf8');
+    } catch (e) {
+      originalName = file.originalname;
+    }
+
+    const ext = path.extname(originalName);
+    const base = path.basename(originalName, ext);
+    let finalPath = path.join(UPLOAD_DIR, originalName);
+
+    if (fs.existsSync(finalPath)) {
+      const timestamp = Date.now().toString().slice(-4);
+      cb(null, `${base}_${timestamp}${ext}`);
+    } else {
+      cb(null, originalName);
+    }
+  }
+});
+
+const uploadMiddleware = multer({
+  storage: storage,
+  limits: { fileSize: 10 * 1024 * 1024 * 1024 } // 10 GB limit
+});
 
 /**
  * Download a shared file by its ID
  */
 function downloadFile(req, res) {
   const fileId = parseInt(req.params.id);
-  const file = global.sharedFiles.find(f => f.id === fileId);
+  const file = global.sharedFiles ? global.sharedFiles.find(f => f.id === fileId) : null;
 
   if (!file || !fs.existsSync(file.path)) {
     return res.status(404).send(`
+      <!DOCTYPE html>
       <html>
         <head>
-          <title>File Not Found</title>
+          <title>File Not Found - LocalShare</title>
+          <meta name="viewport" content="width=device-width, initial-scale=1.0" />
           <style>
             body {
-              font-family: Arial, sans-serif;
+              font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
               text-align: center;
-              margin-top: 50px;
-              color: #333;
+              padding: 50px 20px;
+              background: #0b0f19;
+              color: #f8fafc;
             }
-            .error-container {
-              max-width: 500px;
+            .error-card {
+              max-width: 440px;
               margin: 0 auto;
-              padding: 20px;
-              border: 1px solid #ddd;
-              border-radius: 5px;
-              background-color: #f8f8f8;
+              padding: 32px 24px;
+              border: 1px solid rgba(255,255,255,0.1);
+              border-radius: 12px;
+              background: #1e293b;
+              box-shadow: 0 10px 30px rgba(0,0,0,0.4);
             }
-            h2 { color: #d9534f; }
+            h2 { color: #f43f5e; margin-bottom: 12px; font-size: 1.4rem; }
+            p { color: #94a3b8; font-size: 0.95rem; margin-bottom: 24px; }
             a {
               display: inline-block;
-              margin-top: 20px;
-              color: #337ab7;
+              padding: 10px 24px;
+              background: #6366f1;
+              color: white;
               text-decoration: none;
+              border-radius: 8px;
+              font-weight: 500;
             }
-            a:hover { text-decoration: underline; }
+            a:hover { background: #4f46e5; }
           </style>
         </head>
         <body>
-          <div class="error-container">
+          <div class="error-card">
             <h2>File Not Found</h2>
-            <p>The requested file no longer exists or has been removed.</p>
+            <p>The requested file is no longer being shared or has been removed by the host.</p>
             <a href="/">Return to Home</a>
           </div>
         </body>
@@ -53,20 +108,72 @@ function downloadFile(req, res) {
     `);
   }
 
-  // Log download
   console.log(`File download requested: ${file.name}`);
-
-  // Notify about download if notifications are enabled
-  // notifier.notify({
-  //   title: 'LocalShare',
-  //   message: `Someone downloaded: ${file.name}`,
-  //   icon: path.join(__dirname, '../../../icon.png')
-  // });
-
-  // Send the file for download
   res.download(file.path, file.name);
 }
 
+/**
+ * Handle incoming file uploads from client devices
+ */
+function uploadFiles(req, res) {
+  if (!req.files || req.files.length === 0) {
+    return res.status(400).json({ success: false, error: 'No files uploaded' });
+  }
+
+  const savedFiles = req.files.map((file, index) => {
+    const ext = path.extname(file.filename).toLowerCase().replace('.', '');
+    return {
+      id: Date.now() + index,
+      name: file.filename,
+      path: file.path,
+      size: formatFileSize(file.size),
+      sizeBytes: file.size,
+      extension: ext || 'file',
+      dateAdded: new Date().toISOString()
+    };
+  });
+
+  // Notify Windows desktop if enabled in settings
+  if (process.env.NOTIFICATIONS !== "false") {
+    try {
+      const fileCount = savedFiles.length;
+      const title = 'LocalShare - File Received';
+      const message = fileCount === 1
+        ? `Received "${savedFiles[0].name}" (${savedFiles[0].size})`
+        : `Received ${fileCount} files in Downloads/LocalShare`;
+
+      notifier.notify({
+        title,
+        message,
+        icon: path.join(__dirname, '../../../icon.png')
+      });
+    } catch (err) {
+      console.error('Notification error:', err);
+    }
+  }
+
+  // Send IPC message to parent Electron process if running
+  if (process.send) {
+    try {
+      process.send({
+        type: 'files-received',
+        files: savedFiles
+      });
+    } catch (ipcErr) {
+      console.error('IPC message error:', ipcErr);
+    }
+  }
+
+  res.json({
+    success: true,
+    message: `Successfully uploaded ${savedFiles.length} file(s)`,
+    files: savedFiles
+  });
+}
+
 module.exports = {
-  downloadFile
-};
+  downloadFile,
+  uploadFiles,
+  uploadMiddleware,
+  UPLOAD_DIR
+};

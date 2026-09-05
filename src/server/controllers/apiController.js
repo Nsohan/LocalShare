@@ -42,7 +42,53 @@ function sendNotification(req, res) {
   });
 }
 
+/**
+ * Copy received text to the host PC clipboard
+ */
+function copyToClipboard(req, res) {
+  let text = "";
+
+  if (typeof req.body === "string") {
+    text = req.body;
+  } else if (req.body && typeof req.body.text === "string") {
+    text = req.body.text;
+  } else if (req.body && typeof req.body.content === "string") {
+    text = req.body.content;
+  } else if (req.query && typeof req.query.text === "string") {
+    text = req.query.text;
+  }
+
+  if (typeof text !== "string" || text.trim() === "") {
+    return res.status(400).json({
+      success: false,
+      error: 'No text provided. Send JSON { "text": "..." }, plain text, or ?text=...',
+    });
+  }
+
+  // Forward to Electron main process via child-process IPC
+  if (process.send) {
+    try {
+      process.send({
+        type: "clipboard-copy",
+        text: text,
+      });
+    } catch (ipcErr) {
+      console.error("Failed to forward clipboard to main process:", ipcErr);
+    }
+  }
+
+  const preview = text.length > 50 ? text.slice(0, 50) + "..." : text;
+
+  res.json({
+    success: true,
+    message: "Text copied to host clipboard!",
+    length: text.length,
+    preview,
+  });
+}
+
 module.exports = {
   getSharedFiles,
-  sendNotification
+  sendNotification,
+  copyToClipboard,
 };

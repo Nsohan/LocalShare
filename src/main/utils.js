@@ -29,21 +29,44 @@ function getLocalIP() {
  * @returns {string[]} Valid file paths
  */
 function filterValidFiles(args) {
+  if (!Array.isArray(args) || args.length === 0) return [];
+
   const execPath = path.resolve(process.execPath).toLowerCase();
-  return args.filter((arg) => {
+  const validFiles = [];
+
+  for (let i = 0; i < args.length; i++) {
+    const arg = args[i];
+    if (typeof arg !== "string" || !arg) continue;
+
+    // Skip CLI flags and their argument values (e.g. --require <file>)
+    if (arg.startsWith("-")) {
+      if (arg === "--require" || arg === "-r" || arg === "--inspect") {
+        i++; // Skip the required module path that follows the flag
+      }
+      continue;
+    }
+
     try {
       const resolvedPath = path.resolve(arg).toLowerCase();
-      return (
-        fs.existsSync(arg) &&
-        fs.statSync(arg).isFile() &&
-        resolvedPath !== execPath &&
-        !resolvedPath.includes("pcsrv.exe")
-      );
+
+      // Never auto-share electron executable, server helpers, or files inside node_modules (e.g. electronmon hooks)
+      if (
+        resolvedPath === execPath ||
+        resolvedPath.includes("pcsrv.exe") ||
+        resolvedPath.includes("node_modules")
+      ) {
+        continue;
+      }
+
+      if (fs.existsSync(arg) && fs.statSync(arg).isFile()) {
+        validFiles.push(path.resolve(arg));
+      }
     } catch (err) {
       console.error(`Error processing file ${arg}:`, err);
-      return false;
     }
-  });
+  }
+
+  return validFiles;
 }
 
 module.exports = {

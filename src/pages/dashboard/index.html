@@ -3,28 +3,528 @@
   <head>
     <meta charset="UTF-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-    <title>LocalShare Dashboard</title>
+    <title>LocalShare - Desktop Dashboard</title>
+    <link rel="preconnect" href="https://fonts.googleapis.com" />
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+    <link
+      href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&family=Outfit:wght@600;700&display=swap"
+      rel="stylesheet"
+    />
     <link rel="stylesheet" href="style.css" />
   </head>
   <body>
-    <div class="container">
-      <h1>LocalShare Dashboard</h1>
-      <div class="tab-container">
-        <button class="tab-button active" data-tab="send">Send</button>
-        <button class="tab-button" data-tab="received">Received</button>
+    <div class="app-layout">
+      <!-- Left Sidebar Navigation -->
+      <aside class="sidebar">
+        <div class="sidebar-header">
+          <div class="brand-badge">
+            <img src="../../../icon.png" alt="LocalShare Logo" class="brand-icon" />
+            <div class="brand-text">
+              <span class="brand-name">LocalShare</span>
+              <span class="brand-tag">v1.0</span>
+            </div>
+          </div>
+        </div>
+
+        <nav class="sidebar-menu">
+          <button class="nav-item active" data-view="files">
+            <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+              <path d="M22 19a2 2 0 0 1-2 2H4a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h5l2 3h9a2 2 0 0 1 2 2z"></path>
+            </svg>
+            <span>Files & Sharing</span>
+            <span class="nav-badge" id="navFilesBadge">0</span>
+          </button>
+
+          <button class="nav-item" data-view="connect">
+            <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+              <rect x="3" y="3" width="7" height="7"></rect>
+              <rect x="14" y="3" width="7" height="7"></rect>
+              <rect x="14" y="14" width="7" height="7"></rect>
+              <rect x="3" y="14" width="7" height="7"></rect>
+            </svg>
+            <span>Connect & QR</span>
+          </button>
+
+          <button class="nav-item" data-view="api">
+            <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+              <polyline points="16 18 22 12 16 6"></polyline>
+              <polyline points="8 6 2 12 8 18"></polyline>
+            </svg>
+            <span>API Explorer</span>
+          </button>
+
+          <button class="nav-item" data-view="settings">
+            <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+              <circle cx="12" cy="12" r="3"></circle>
+              <path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 0 1 0 2.83 2 2 0 0 1-2.83 0l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 0 1-2 2 2 2 0 0 1-2-2v-.09A1.65 1.65 0 0 0 9 19.4a1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 0 1-2.83 0 2 2 0 0 1 0-2.83l.06-.06a1.65 1.65 0 0 0 .33-1.82 1.65 1.65 0 0 0-1.51-1H3a2 2 0 0 1-2-2 2 2 0 0 1 2-2h.09A1.65 1.65 0 0 0 4.6 9a1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 0 1 0-2.83 2 2 0 0 1 2.83 0l.06.06a1.65 1.65 0 0 0 1.82.33H9a1.65 1.65 0 0 0 1-1.51V3a2 2 0 0 1 2-2 2 2 0 0 1 2 2v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 0 1 2.83 0 2 2 0 0 1 0 2.83l-.06.06a1.65 1.65 0 0 0-.33 1.82V9a1.65 1.65 0 0 0 1.51 1H21a2 2 0 0 1 2 2 2 2 0 0 1-2 2h-.09a1.65 1.65 0 0 0-1.51 1z"></path>
+            </svg>
+            <span>Settings</span>
+          </button>
+
+          <button class="nav-item" data-view="about">
+            <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+              <circle cx="12" cy="12" r="10"></circle>
+              <line x1="12" y1="16" x2="12" y2="12"></line>
+              <line x1="12" y1="8" x2="12.01" y2="8"></line>
+            </svg>
+            <span>About</span>
+          </button>
+        </nav>
+
+        <div class="sidebar-footer">
+          <div class="server-status-card" id="sidebarServerCard" title="Click to copy server URL">
+            <div class="status-indicator-wrap">
+              <span class="status-dot"></span>
+              <span class="status-label" id="sidebarServerStatus">Active :5199</span>
+            </div>
+            <span class="status-ip" id="sidebarServerIp">127.0.0.1</span>
+          </div>
+
+          <button class="btn btn-secondary w-full" id="sidebarOpenBrowserBtn">
+            <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+              <circle cx="12" cy="12" r="10"></circle>
+              <line x1="2" y1="12" x2="22" y2="12"></line>
+              <path d="M12 2a15.3 15.3 0 0 1 4 10 15.3 15.3 0 0 1-4 10 15.3 15.3 0 0 1-4-10 15.3 15.3 0 0 1 4-10z"></path>
+            </svg>
+            <span>Open Browser</span>
+          </button>
+        </div>
+      </aside>
+
+      <!-- Main Content Pane -->
+      <div class="content-wrapper">
+        <!-- Top Context Header -->
+        <header class="top-header">
+          <h2 class="view-title" id="viewTitle">Files & Sharing</h2>
+
+          <div class="top-actions">
+            <div class="server-pill" id="serverPill" title="Click to copy server URL">
+              <span class="pulse-indicator"></span>
+              <span class="server-status-text" id="serverStatusText">Connecting...</span>
+              <button class="pill-copy-btn" id="pillCopyBtn" title="Copy server URL">
+                <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                  <rect x="9" y="9" width="13" height="13" rx="2" ry="2"></rect>
+                  <path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"></path>
+                </svg>
+              </button>
+            </div>
+          </div>
+        </header>
+
+        <!-- Dynamic Views Area -->
+        <main class="views-container">
+          <!-- ==============================================
+               VIEW 1: FILES & SHARING (DEFAULT)
+               ============================================== -->
+          <section class="view-panel active" id="view-files">
+            <!-- Dropzone Area -->
+            <div class="dropzone" id="dropzone">
+              <div class="dropzone-inner">
+                <div class="dropzone-icon-wrapper">
+                  <svg width="34" height="34" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                    <path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"></path>
+                    <polyline points="17 8 12 3 7 8"></polyline>
+                    <line x1="12" y1="3" x2="12" y2="15"></line>
+                  </svg>
+                </div>
+                <div class="dropzone-content">
+                  <h3>Drop files here to share</h3>
+                  <p>Instantly shared with all mobile devices and computers on your Wi-Fi</p>
+                </div>
+                <div class="dropzone-actions">
+                  <button class="btn btn-primary" id="browseBtn">
+                    <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                      <line x1="12" y1="5" x2="12" y2="19"></line>
+                      <line x1="5" y1="12" x2="19" y2="12"></line>
+                    </svg>
+                    <span>Browse Files</span>
+                  </button>
+                </div>
+              </div>
+            </div>
+
+            <!-- Stats Bar -->
+            <div class="stats-grid">
+              <div class="stat-card">
+                <div class="stat-icon-wrapper blue">
+                  <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                    <path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"></path>
+                    <polyline points="14 2 14 8 20 8"></polyline>
+                  </svg>
+                </div>
+                <div class="stat-data">
+                  <span class="stat-label">Active Shared</span>
+                  <span class="stat-value" id="statFilesCount">0 Files</span>
+                </div>
+              </div>
+
+              <div class="stat-card">
+                <div class="stat-icon-wrapper purple">
+                  <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                    <path d="M21 16V8a2 2 0 0 0-1-1.73l-7-4a2 2 0 0 0-2 0l-7 4A2 2 0 0 0 3 8v8a2 2 0 0 0 1 1.73l7 4a2 2 0 0 0 2 0l7-4A2 2 0 0 0 21 16z"></path>
+                  </svg>
+                </div>
+                <div class="stat-data">
+                  <span class="stat-label">Total Size</span>
+                  <span class="stat-value" id="statTotalSize">0 Bytes</span>
+                </div>
+              </div>
+
+              <div class="stat-card">
+                <div class="stat-icon-wrapper emerald">
+                  <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                    <rect x="2" y="2" width="20" height="8" rx="2" ry="2"></rect>
+                    <rect x="2" y="14" width="20" height="8" rx="2" ry="2"></rect>
+                    <line x1="6" y1="6" x2="6.01" y2="6"></line>
+                    <line x1="6" y1="18" x2="6.01" y2="18"></line>
+                  </svg>
+                </div>
+                <div class="stat-data">
+                  <span class="stat-label">Port</span>
+                  <span class="stat-value" id="statPort">5199</span>
+                </div>
+              </div>
+
+              <div class="stat-card">
+                <div class="stat-icon-wrapper amber">
+                  <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                    <path d="M5 12.55a11 11 0 0 1 14.08 0"></path>
+                    <path d="M1.42 9a16 16 0 0 1 21.16 0"></path>
+                    <path d="M8.53 16.11a6 6 0 0 1 6.95 0"></path>
+                  </svg>
+                </div>
+                <div class="stat-data">
+                  <span class="stat-label">Local IP</span>
+                  <span class="stat-value" id="statIp">127.0.0.1</span>
+                </div>
+              </div>
+            </div>
+
+            <!-- Files Tabs & Lists -->
+            <section class="files-section">
+              <div class="section-header">
+                <div class="tabs">
+                  <button class="tab-btn active" data-tab="send">
+                    <span>Shared by PC</span>
+                    <span class="tab-badge" id="sentBadge">0</span>
+                  </button>
+                  <button class="tab-btn" data-tab="received">
+                    <span>Received from Mobile</span>
+                    <span class="tab-badge" id="receivedBadge">0</span>
+                  </button>
+                </div>
+
+                <button class="btn btn-ghost danger" id="removeAllBtn" title="Remove all files in active tab">
+                  <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                    <polyline points="3 6 5 6 21 6"></polyline>
+                    <path d="M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6m3 0V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2"></path>
+                  </svg>
+                  <span>Clear All</span>
+                </button>
+              </div>
+
+              <!-- Sent Files -->
+              <div class="tab-pane active" id="pane-send">
+                <div class="file-list" id="sentFilesList"></div>
+                <div class="empty-state" id="sentEmptyState">
+                  <div class="empty-icon">📁</div>
+                  <h3>No files shared yet</h3>
+                  <p>Drag and drop files into the zone above, or click <strong>Browse Files</strong> to start sharing.</p>
+                </div>
+              </div>
+
+              <!-- Received Files -->
+              <div class="tab-pane" id="pane-received">
+                <div class="file-list" id="receivedFilesList"></div>
+                <div class="empty-state" id="receivedEmptyState">
+                  <div class="empty-icon">📥</div>
+                  <h3>No received files yet</h3>
+                  <p>Files uploaded from phones and tablets via the web client will appear here automatically.</p>
+                </div>
+              </div>
+            </section>
+          </section>
+
+          <!-- ==============================================
+               VIEW 2: CONNECT & QR CODE
+               ============================================== -->
+          <section class="view-panel" id="view-connect">
+            <div class="panel-card connect-card">
+              <div class="qr-display-wrapper">
+                <div class="qr-box">
+                  <img id="qrCodeImg" alt="QR Code" width="220" height="220" />
+                </div>
+                <div class="qr-info">
+                  <h3>Scan to Connect from Phone</h3>
+                  <p>Point your phone's camera at this QR code to instantly open the LocalShare mobile client.</p>
+
+                  <div class="url-badge-box">
+                    <span class="url-text" id="connectUrlText">http://localhost:5199</span>
+                    <button class="btn btn-sm btn-primary" id="copyConnectUrlBtn">Copy Link</button>
+                  </div>
+                </div>
+              </div>
+
+              <div class="connect-instructions">
+                <h4>Connection Guide</h4>
+                <div class="steps-grid">
+                  <div class="step-card">
+                    <span class="step-number">1</span>
+                    <div class="step-content">
+                      <strong>Same Wi-Fi</strong>
+                      <span>Make sure your phone and this PC are on the same Wi-Fi network.</span>
+                    </div>
+                  </div>
+                  <div class="step-card">
+                    <span class="step-number">2</span>
+                    <div class="step-content">
+                      <strong>Scan or Browse</strong>
+                      <span>Scan the QR code, or type the URL into Chrome, Safari, or Firefox.</span>
+                    </div>
+                  </div>
+                  <div class="step-card">
+                    <span class="step-number">3</span>
+                    <div class="step-content">
+                      <strong>Share & Receive</strong>
+                      <span>Download PC files or send mobile photos straight to your computer.</span>
+                    </div>
+                  </div>
+                </div>
+              </div>
+            </div>
+          </section>
+
+          <!-- ==============================================
+               VIEW 3: API EXPLORER
+               ============================================== -->
+          <section class="view-panel" id="view-api">
+            <div class="panel-card">
+              <div class="api-header">
+                <div>
+                  <h3>LocalShare REST API</h3>
+                  <p>Integrate or script file transfers using standard HTTP endpoints.</p>
+                </div>
+                <span class="badge-pill">Local Network Only</span>
+              </div>
+
+              <div class="api-endpoints-list">
+                <!-- Endpoint 1 -->
+                <div class="api-card">
+                  <div class="api-card-header">
+                    <span class="http-badge get">GET</span>
+                    <span class="api-route">/api/shared-file</span>
+                    <span class="api-desc">List all files currently shared by the PC</span>
+                  </div>
+                  <div class="api-code-block">
+                    <pre><code>curl http://<span class="api-host-token">localhost:5199</span>/api/shared-file</code></pre>
+                  </div>
+                </div>
+
+                <!-- Endpoint 2 -->
+                <div class="api-card">
+                  <div class="api-card-header">
+                    <span class="http-badge post">POST</span>
+                    <span class="api-route">/api/upload</span>
+                    <span class="api-desc">Upload files to PC (multipart/form-data)</span>
+                  </div>
+                  <div class="api-code-block">
+                    <pre><code>curl -F "files=@photo.jpg" http://<span class="api-host-token">localhost:5199</span>/api/upload</code></pre>
+                  </div>
+                </div>
+
+                <!-- Endpoint 3 -->
+                <div class="api-card">
+                  <div class="api-card-header">
+                    <span class="http-badge get">GET</span>
+                    <span class="api-route">/download/:id</span>
+                    <span class="api-desc">Download a file by its ID</span>
+                  </div>
+                  <div class="api-code-block">
+                    <pre><code>curl -O http://<span class="api-host-token">localhost:5199</span>/download/0</code></pre>
+                  </div>
+                </div>
+
+                <!-- Endpoint 4 -->
+                <div class="api-card">
+                  <div class="api-card-header">
+                    <span class="http-badge post">POST</span>
+                    <span class="api-route">/api/clipboard</span>
+                    <span class="api-desc">Send text to host PC clipboard (instantly paste with Ctrl+V)</span>
+                  </div>
+                  <div class="api-code-block">
+                    <pre><code>curl -X POST -H "Content-Type: application/json" -d '{"text":"Hello from phone!"}' http://<span class="api-host-token">localhost:5199</span>/api/clipboard</code></pre>
+                  </div>
+                </div>
+
+                <!-- Endpoint 5 -->
+                <div class="api-card">
+                  <div class="api-card-header">
+                    <span class="http-badge get">GET</span>
+                    <span class="api-route">/api/server-info</span>
+                    <span class="api-desc">Get host computer name, platform, and port</span>
+                  </div>
+                  <div class="api-code-block">
+                    <pre><code>curl http://<span class="api-host-token">localhost:5199</span>/api/server-info</code></pre>
+                  </div>
+                </div>
+              </div>
+            </div>
+          </section>
+
+          <!-- ==============================================
+               VIEW 4: SETTINGS
+               ============================================== -->
+          <section class="view-panel" id="view-settings">
+            <div class="panel-card settings-card">
+              <form id="settingsForm">
+                <!-- General Settings -->
+                <div class="settings-group">
+                  <h3 class="settings-group-title">General Preferences</h3>
+
+                  <div class="setting-row">
+                    <div class="setting-meta">
+                      <label class="setting-title" for="setAutostart">Start with Windows</label>
+                      <span class="setting-desc">Automatically launch LocalShare when your computer starts</span>
+                    </div>
+                    <label class="toggle-switch">
+                      <input type="checkbox" id="setAutostart" />
+                      <span class="slider"></span>
+                    </label>
+                  </div>
+
+                  <div class="setting-row">
+                    <div class="setting-meta">
+                      <label class="setting-title" for="setOpenDashboard">Open Dashboard on Launch</label>
+                      <span class="setting-desc">Display the dashboard window automatically when LocalShare starts</span>
+                    </div>
+                    <label class="toggle-switch">
+                      <input type="checkbox" id="setOpenDashboard" />
+                      <span class="slider"></span>
+                    </label>
+                  </div>
+
+                  <div class="setting-row">
+                    <div class="setting-meta">
+                      <label class="setting-title" for="setNotifications">Desktop Notifications</label>
+                      <span class="setting-desc">Show Windows notifications when files are added, received, or downloaded</span>
+                    </div>
+                    <label class="toggle-switch">
+                      <input type="checkbox" id="setNotifications" />
+                      <span class="slider"></span>
+                    </label>
+                  </div>
+                </div>
+
+                <!-- Server Settings -->
+                <div class="settings-group">
+                  <h3 class="settings-group-title">Network & Server</h3>
+
+                  <div class="setting-row">
+                    <div class="setting-meta">
+                      <label class="setting-title" for="setPort">Web Server Port</label>
+                      <span class="setting-desc">Port used by the local web server (Default: 5199)</span>
+                    </div>
+                    <div class="setting-input-wrap">
+                      <input type="number" id="setPort" min="1024" max="65535" class="input-text" />
+                      <button type="button" class="btn btn-sm btn-warning" id="restartServerBtn" style="display: none;">Restart Server</button>
+                    </div>
+                  </div>
+
+                  <div class="setting-row">
+                    <div class="setting-meta">
+                      <label class="setting-title" for="setTheme">Interface Theme</label>
+                      <span class="setting-desc">Choose your preferred visual appearance</span>
+                    </div>
+                    <select id="setTheme" class="select-dropdown">
+                      <option value="dark">Dark Theme (Default)</option>
+                      <option value="light">Light Theme</option>
+                      <option value="system">Match System</option>
+                    </select>
+                  </div>
+                </div>
+
+                <!-- Storage & History -->
+                <div class="settings-group">
+                  <h3 class="settings-group-title">Storage & History</h3>
+
+                  <div class="setting-row">
+                    <div class="setting-meta">
+                      <label class="setting-title">Received Files Folder</label>
+                      <span class="setting-desc">Location where files sent from mobile devices are saved</span>
+                    </div>
+                    <button type="button" class="btn btn-secondary btn-sm" id="openReceivedFolderBtn">Open Downloads/LocalShare</button>
+                  </div>
+
+                  <div class="setting-row">
+                    <div class="setting-meta">
+                      <label class="setting-title">Clear Transfer History</label>
+                      <span class="setting-desc">Reset the list of received and recently shared files</span>
+                    </div>
+                    <button type="button" class="btn btn-ghost danger btn-sm" id="clearHistoryBtn">Clear History</button>
+                  </div>
+
+                  <div class="setting-row">
+                    <div class="setting-meta">
+                      <label class="setting-title">Application Logs</label>
+                      <span class="setting-desc">View diagnostic logs in your default text editor</span>
+                    </div>
+                    <button type="button" class="btn btn-secondary btn-sm" id="openLogsBtn">View Logs</button>
+                  </div>
+                </div>
+
+                <div class="settings-actions">
+                  <button type="submit" class="btn btn-primary" id="saveSettingsBtn">Save Changes</button>
+                </div>
+              </form>
+            </div>
+          </section>
+
+          <!-- ==============================================
+               VIEW 5: ABOUT
+               ============================================== -->
+          <section class="view-panel" id="view-about">
+            <div class="panel-card about-card">
+              <div class="about-hero">
+                <img src="../../../icon.png" alt="LocalShare Logo" class="about-logo" />
+                <h3>LocalShare</h3>
+                <span class="about-ver">Version 1.0.0</span>
+                <p class="about-bio">High-speed, private local network file sharing for Windows, macOS, Android, and iOS.</p>
+              </div>
+
+              <div class="about-details-grid">
+                <div class="about-item">
+                  <span class="about-label">Developer</span>
+                  <span class="about-value">Nasimul Hoque Sohan</span>
+                </div>
+                <div class="about-item">
+                  <span class="about-label">Contact</span>
+                  <span class="about-value">nhsohan3@gmail.com</span>
+                </div>
+                <div class="about-item">
+                  <span class="about-label">Runtime</span>
+                  <span class="about-value" id="aboutRuntime">Electron & Node.js</span>
+                </div>
+                <div class="about-item">
+                  <span class="about-label">Operating System</span>
+                  <span class="about-value" id="aboutPlatform">Windows</span>
+                </div>
+              </div>
+
+              <div class="about-footer">
+                <p>&copy; 2025 Nasimul Hoque Sohan. All rights reserved.</p>
+              </div>
+            </div>
+          </section>
+        </main>
       </div>
-      <div class="tab-content" id="send">
-        <h2>Sent Files</h2>
-        <button id="removeAllSentBtn">Remove All</button>
-        <ul id="sentFilesList" class="file-list"></ul>
+
+      <!-- Global Notification Toast -->
+      <div class="toast" id="toast">
+        <span class="toast-icon">✓</span>
+        <span class="toast-message" id="toastMessage">Action completed</span>
       </div>
-      <div class="tab-content" id="received" style="display: none">
-        <h2>Received Files</h2>
-        <button id="removeAllReceivedBtn">Remove All</button>
-        <ul id="receivedFilesList" class="file-list"></ul>
-      </div>
-      <button id="settingsBtn">Settings</button>
     </div>
+
     <script src="script.js"></script>
   </body>
 </html>

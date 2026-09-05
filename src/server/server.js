@@ -101,10 +101,19 @@ try {
     res.status(500).send("Server error");
   });
 
+  app.use(express.json());
+  app.use(express.text({ type: ["text/*", "text/plain"] }));
+  app.use(express.urlencoded({ extended: true }));
+
   // Set up static file serving - use absolute paths
-  // Make sure paths exist before setting up static serving
   const publicDir = path.join(__dirname, "../../public");
   const pagesDir = path.join(__dirname, "../pages");
+  const homeDir = path.join(__dirname, "../pages/home");
+
+  if (fs.existsSync(homeDir)) {
+    logger.debug("Home directory exists, serving static client files");
+    app.use(express.static(homeDir));
+  }
 
   logger.debug("Checking for public directory:", publicDir);
   if (fs.existsSync(publicDir)) {
@@ -181,8 +190,8 @@ try {
         // Save the terminator
         httpTerminator = createHttpTerminator({ server });
 
-        // Notify about shared files
-        if (global.sharedFiles.length > 0) {
+        // Notify about shared files if enabled
+        if (global.sharedFiles.length > 0 && process.env.NOTIFICATIONS !== "false") {
           if (global.sharedFiles.length === 1) {
             logger.info(`Sharing file: ${global.sharedFiles[0].name}`);
             try {

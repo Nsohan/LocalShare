@@ -1,63 +1,72 @@
 {
-    "name": "local-share",
+  "name": "local-share",
+  "productName": "LocalShare",
+  "version": "1.0.0",
+  "description": "A simple server to share files between devices",
+  "author": "Nasimul Hoque Sohan <nhsohan3@gmail.com>",
+  "main": "src/main/main.js",
+  "scripts": {
+    "start": "electron .",
+    "dev": "electronmon .",
+    "package": "set ELECTRON_BUILDER_7ZIP_SYMLINKS=0 && electron-builder"
+  },
+  "electronmon": {
+    "patterns": [
+      "src/**/*",
+      "public/**/*"
+    ]
+  },
+  "build": {
+    "appId": "com.nhs.LocalShare",
     "productName": "LocalShare",
-    "version": "1.0.0",
-    "description": "A simple server to share files between devices",
-    "author": "Nasimul Hoque Sohan <nhsohan3@gmail.com>",
-    "main": "src/main/main.js",
-    "scripts": {
-        "start": "electron .",
-        "package": "set ELECTRON_BUILDER_7ZIP_SYMLINKS=0 && electron-builder"
+    "executableName": "LocalShare",
+    "copyright": "Copyright © 2025 Nasimul Hoque Sohan",
+    "directories": {
+      "output": "dist"
     },
-    "build": {
-        "appId": "com.nhs.LocalShare",
-        "productName": "LocalShare",
-        "executableName": "LocalShare",
-        "copyright": "Copyright © 2025 Nasimul Hoque Sohan",
-        "directories": {
-            "output": "dist"
-        },
-        "files": [
-            "build/**/*",
-            "src/**/*",
-            "public/**/*",
-            "node_modules/**/*",
-            "package.json"
-        ],
-        "win": {
-            "target": "nsis",
-            "icon": "build/icon.ico",
-            "requestedExecutionLevel": "asInvoker",
-            "publisherName": "Nasimul Hoque Sohan"
-        },
-        "nsis": {
-            "runAfterFinish": false,
-            "createDesktopShortcut": false,
-            "createStartMenuShortcut": true,
-            "shortcutName": "LocalShare",
-            "oneClick": false,
-            "allowToChangeInstallationDirectory": true,
-            "menuCategory": true,
-            "include": "installer.nsh"
-        },
-        "mac": null,
-        "linux": null
+    "files": [
+      "build/**/*",
+      "src/**/*",
+      "public/**/*",
+      "node_modules/**/*",
+      "package.json"
+    ],
+    "win": {
+      "target": "nsis",
+      "icon": "build/icon.ico",
+      "requestedExecutionLevel": "asInvoker",
+      "publisherName": "Nasimul Hoque Sohan"
     },
-    "dependencies": {
-        "auto-launch": "^5.0.5",
-        "express": "^4.17.1",
-        "qrcode": "^1.5.4",
-        "node-notifier": "^10.0.1",
-        "electron-fetch": "^1.7.3",
-        "electron-squirrel-startup": "^1.0.1",
-        "esm": "^3.2.25",
-        "http-terminator": "2.0.3",
-        "network": "^0.5.0",
-        "node-fetch": "^2.6.0",
-        "url-exist": "^2.0.2"
+    "nsis": {
+      "runAfterFinish": false,
+      "createDesktopShortcut": false,
+      "createStartMenuShortcut": true,
+      "shortcutName": "LocalShare",
+      "oneClick": false,
+      "allowToChangeInstallationDirectory": true,
+      "menuCategory": true,
+      "include": "installer.nsh"
     },
-    "devDependencies": {
-        "electron": "^28.3.3",
-        "electron-builder": "^24.13.3"
-    }
+    "mac": null,
+    "linux": null
+  },
+  "dependencies": {
+    "auto-launch": "^5.0.5",
+    "electron-fetch": "^1.7.3",
+    "electron-squirrel-startup": "^1.0.1",
+    "esm": "^3.2.25",
+    "express": "^4.17.1",
+    "http-terminator": "2.0.3",
+    "multer": "^2.3.0",
+    "network": "^0.5.0",
+    "node-fetch": "^2.6.0",
+    "node-notifier": "^10.0.1",
+    "qrcode": "^1.5.4",
+    "url-exist": "^2.0.2"
+  },
+  "devDependencies": {
+    "electron": "^28.3.3",
+    "electron-builder": "^24.13.3",
+    "electronmon": "^2.0.4"
+  }
 }

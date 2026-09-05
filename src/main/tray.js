@@ -4,10 +4,7 @@
 const { app, Tray, Menu, shell, dialog, Notification } = require("electron");
 const path = require("path");
 const logger = require("../config/logger");
-const { showQRCodeWindow } = require("./windows/qrcode");
-const { showAboutWindow } = require("./windows/about");
 const { showDashboardWindow } = require("./windows/dashboard");
-const { showSettingsWindow } = require("./windows/settings");
 const { getLocalIP } = require("./utils");
 const { getConfig, setConfig } = require("../config/config");
 
@@ -171,7 +168,8 @@ function updateTrayMenu(sharedFiles = []) {
         label: "📊 Open Dashboard",
         click: () => {
           logger.info("Opening dashboard from menu");
-          showDashboardWindow();
+          const win = showDashboardWindow();
+          if (win && !win.isDestroyed()) win.webContents.send("dashboard:switch-tab", "files");
         },
       },
       {
@@ -184,8 +182,9 @@ function updateTrayMenu(sharedFiles = []) {
       {
         label: "📱 Show QR Code",
         click: () => {
-          logger.info("Showing QR code");
-          showQRCodeWindow(`http://${ip}:${port}`);
+          logger.info("Showing QR code in dashboard");
+          const win = showDashboardWindow();
+          if (win && !win.isDestroyed()) win.webContents.send("dashboard:switch-tab", "connect");
         },
       },
       { type: "separator" },
@@ -197,15 +196,17 @@ function updateTrayMenu(sharedFiles = []) {
       {
         label: "⚙️ Settings",
         click: () => {
-          logger.info("Opening settings");
-          showSettingsWindow();
+          logger.info("Opening settings in dashboard");
+          const win = showDashboardWindow();
+          if (win && !win.isDestroyed()) win.webContents.send("dashboard:switch-tab", "settings");
         },
       },
       {
         label: "ℹ️ About",
         click: () => {
-          showAboutWindow();
-          logger.info("Opening About window");
+          logger.info("Opening About in dashboard");
+          const win = showDashboardWindow();
+          if (win && !win.isDestroyed()) win.webContents.send("dashboard:switch-tab", "about");
         },
       },
       { type: "separator" },

@@ -7,6 +7,8 @@ const {
   Notification,
   ipcMain,
   shell,
+  dialog,
+  clipboard,
 } = require("electron");
 const path = require("path");
 const fs = require("fs");
@@ -15,10 +17,9 @@ const logger = require("../config/logger");
 
 // Import local modules
 const { createTray, updateTrayMenu } = require("./tray");
-const { filterValidFiles } = require("./utils");
+const { filterValidFiles, getLocalIP } = require("./utils");
 const { getConfig, setConfig, updateConfig } = require("../config/config");
-const { showSettingsWindow } = require("./windows/settings");
-const { showDashboardWindow } = require("./windows/dashboard");
+const { showDashboardWindow, getDashboardWindow } = require("./windows/dashboard");
 
 // Make sure app is ready before requiring config
 let configReady = false;
@@ -34,7 +35,121 @@ const gotTheLock = app.requestSingleInstanceLock();
 let serverProcess = null;
 let sharedFiles = [];
 let tray = null;
-let mainWindow = null;
+
+/**
+ * Get safe application icon path
+ */
+function getAppIcon() {
+  const icoPath = path.join(__dirname, "../../build/icon.ico");
+  if (fs.existsSync(icoPath)) return icoPath;
+  return path.join(__dirname, "../../icon.png");
+}
+
+/**
+ * Show notification if user enabled notifications in settings
+ */
+function showAppNotification(options) {
+  if (getConfig("notifications") === false) {
+    logger.debug("Notifications suppressed by user config:", options.title);
+    return;
+  }
+  try {
+    new Notification({
+      ...options,
+      icon: options.icon || getAppIcon(),
+    }).show();
+  } catch (err) {
+    logger.error("Error showing notification:", err);
+  }
+}
+
+/**
+ * Focus dashboard and switch to a specific tab
+ */
+function navigateDashboard(tab = "files") {
+  const win = showDashboardWindow();
+  if (win && !win.isDestroyed()) {
+    win.webContents.send("dashboard:switch-tab", tab);
+  }
+  return win;
+}
+
+/**
+ * Format bytes to readable size
+ */
+function formatFileSize(bytes) {
+  if (!bytes || bytes === 0) return "0 Bytes";
+  const k = 1024;
+  const sizes = ["Bytes", "KB", "MB", "GB", "TB"];
+  const i = Math.floor(Math.log(bytes) / Math.log(k));
+  return parseFloat((bytes / Math.pow(k, i)).toFixed(2)) + " " + sizes[i];
+}
+
+/**
+ * Format shared files array with rich metadata
+ */
+function getFormattedFiles(filePaths = sharedFiles) {
+  return filePaths
+    .filter((filePath) => typeof filePath === "string" && fs.existsSync(filePath))
+    .map((filePath, index) => {
+      try {
+        const stats = fs.statSync(filePath);
+        const ext = path.extname(filePath).toLowerCase().replace(".", "");
+        return {
+          id: index,
+          path: filePath,
+          name: path.basename(filePath),
+          size: formatFileSize(stats.size),
+          sizeBytes: stats.size,
+          extension: ext || "file",
+          dateAdded: stats.mtime ? stats.mtime.toISOString() : new Date().toISOString(),
+        };
+      } catch (err) {
+        return {
+          id: index,
+          path: filePath,
+          name: path.basename(filePath),
+          size: "Unknown",
+          sizeBytes: 0,
+          extension: "file",
+          dateAdded: new Date().toISOString(),
+        };
+      }
+    });
+}
+
+/**
+ * Get the full dashboard state object
+ */
+function getDashboardState() {
+  const port = getConfig("port") || 5199;
+  const ip = getLocalIP();
+  return {
+    sentFiles: getFormattedFiles(),
+    receivedFiles: getConfig("receivedFiles") || [],
+    serverInfo: {
+      ip,
+      port,
+      url: `http://${ip}:${port}`,
+      isRunning: serverProcess !== null,
+    },
+    config: getConfig(),
+  };
+}
+
+/**
+ * Broadcast updated state to the dashboard window
+ */
+function broadcastDashboardState() {
+  const win = getDashboardWindow();
+  if (win && !win.isDestroyed()) {
+    win.webContents.send("dashboard:state-updated", getDashboardState());
+    win.webContents.send("file-lists", {
+      sentFiles: getFormattedFiles(),
+      receivedFiles: getConfig("receivedFiles") || [],
+    });
+  }
+}
 
 /**
  * Clear all shared files
@@ -42,6 +157,7 @@ let mainWindow = null;
 function clearAllSharedFiles() {
   logger.info("Clearing all shared files");
   sharedFiles.length = 0; // Clear the array
+  broadcastDashboardState();
   return sharedFiles;
 }
 
@@ -105,6 +221,7 @@ async function startServer(filePaths = [], port = null) {
         ELECTRON_RUN_AS_NODE: "1",
         LOG_PATH: logger.getLogPath(), // Pass log path to child process
         PORT: serverPort, // Pass the port to use
+        NOTIFICATIONS: getConfig("notifications") === false ? "false" : "true",
       },
     });
 
@@ -113,7 +230,7 @@ async function startServer(filePaths = [], port = null) {
       new Notification({
         title: "LocalShare Error",
         body: "Failed to start server. Please try again.",
-        icon: path.join(__dirname, "../../build/icon.ico"),
+        icon: getAppIcon(),
       }).show();
     });
 
@@ -123,7 +240,7 @@ async function startServer(filePaths = [], port = null) {
         new Notification({
           title: "LocalShare Error",
           body: "Server stopped unexpectedly.",
-          icon: path.join(__dirname, "../../build/icon.ico"),
+          icon: getAppIcon(),
         }).show();
       }
     });
@@ -134,6 +251,35 @@ async function startServer(filePaths = [], port = null) {
 
     serverProcess.stderr.on("data", (data) => {
       logger.error(`Server stderr: ${data.toString().trim()}`);
+    });
+
+    // Handle IPC messages from child server process
+    serverProcess.on("message", (msg) => {
+      if (msg && msg.type === "files-received" && Array.isArray(msg.files)) {
+        logger.info("Server process reported received files:", msg.files);
+        const currentReceived = getConfig("receivedFiles") || [];
+        const updated = [...msg.files, ...currentReceived];
+        setConfig("receivedFiles", updated);
+        broadcastDashboardState();
+      } else if (msg && msg.type === "clipboard-copy" && typeof msg.text === "string") {
+        logger.info("Received remote clipboard text (length:", msg.text.length, ")");
+        clipboard.writeText(msg.text);
+
+        const preview = msg.text.length > 60 ? msg.text.slice(0, 60) + "..." : msg.text;
+        showAppNotification({
+          title: "LocalShare - Copied to Clipboard",
+          body: `"${preview}" (Ready to Ctrl+V)`,
+        });
+
+        const win = getDashboardWindow();
+        if (win && !win.isDestroyed()) {
+          win.webContents.send("dashboard:clipboard-received", {
+            text: msg.text,
+            preview,
+            length: msg.text.length,
+          });
+        }
+      }
     });
 
     // Save last files to config
@@ -147,7 +293,7 @@ async function startServer(filePaths = [], port = null) {
     new Notification({
       title: "LocalShare Error",
       body: "Failed to start server. Check logs for details.",
-      icon: path.join(__dirname, "../../build/icon.ico"),
+      icon: getAppIcon(),
     }).show();
     return false;
   }
@@ -157,59 +303,7 @@ async function startServer(filePaths = [], port = null) {
  * Create or show the main dashboard window
  */
 function createMainWindow() {
-  logger.debug("Creating/showing main dashboard window");
-
-  // If window already exists, just show and focus it
-  if (mainWindow && !mainWindow.isDestroyed()) {
-    mainWindow.show();
-    mainWindow.focus();
-    return mainWindow;
-  }
-
-  // Create new dashboard window
-  mainWindow = new BrowserWindow({
-    width: 900,
-    height: 700,
-    minWidth: 800,
-    minHeight: 600,
-    icon: path.join(__dirname, "../../build/icon.ico"),
-    webPreferences: {
-      nodeIntegration: true,
-      contextIsolation: false,
-    },
-    show: true,
-    center: true,
-    title: "LocalShare Dashboard",
-  });
-
-  // Load the dashboard page
-  const dashboardPath = path.join(__dirname, "../pages/dashboard/index.html");
-  mainWindow.loadFile(dashboardPath);
-
-  // Handle window closed
-  mainWindow.on("closed", () => {
-    mainWindow = null;
-  });
-
-  // Minimize to tray instead of closing (optional)
-  mainWindow.on("close", (event) => {
-    if (!app.isQuiting) {
-      event.preventDefault();
-      mainWindow.hide();
-
-      // Show notification on first minimize
-      if (!mainWindow.hasShownMinimizeNotification) {
-        new Notification({
-          title: "LocalShare",
-          body: "LocalShare is still running in the background. Access it from the system tray.",
-          icon: path.join(__dirname, "../../build/icon.ico"),
-        }).show();
-        mainWindow.hasShownMinimizeNotification = true;
-      }
-    }
-  });
-
-  return mainWindow;
+  return showDashboardWindow();
 }
 
 // Handle second instance (when app is already running)
@@ -221,13 +315,7 @@ if (!gotTheLock) {
     logger.info("Second instance detected with args:", commandLine);
 
     // Show main window when second instance is launched
-    if (mainWindow) {
-      if (mainWindow.isMinimized()) mainWindow.restore();
-      mainWindow.show();
-      mainWindow.focus();
-    } else {
-      createMainWindow();
-    }
+    showDashboardWindow();
 
     try {
       const newFiles = filterValidFiles(commandLine);
@@ -237,48 +325,187 @@ if (!gotTheLock) {
         sharedFiles = [...new Set([...sharedFiles, ...newFiles])];
         await startServer(sharedFiles);
         updateTrayMenu(sharedFiles);
+        broadcastDashboardState();
 
         // Notification logic
         if (newFiles.length === 1) {
           // Single file: show file name
-          new Notification({
+          showAppNotification({
             title: "LocalShare",
             body: `File added: ${path.basename(newFiles[0])}`,
-            icon: path.join(__dirname, "../../build/icon.ico"),
-          }).show();
+          });
         } else {
           // Multiple files: show count
-          new Notification({
+          showAppNotification({
             title: "LocalShare",
             body: `${newFiles.length} files added`,
-            icon: path.join(__dirname, "../../build/icon.ico"),
-          }).show();
+          });
         }
       } else {
         logger.info("No valid files found in second instance args.");
       }
     } catch (err) {
       logger.error("Error in second-instance handler:", err);
-      new Notification({
+      showAppNotification({
         title: "LocalShare Error",
         body: "Failed to process new files. Check logs for details.",
-        icon: path.join(__dirname, "../../build/icon.ico"),
-      }).show();
+      });
     }
   });
 
-  // IPC handlers
+  // ==========================
+  // IPC Handlers
+  // ==========================
+
+  // Dashboard navigation request
+  ipcMain.on("dashboard:navigate", (event, tab) => {
+    navigateDashboard(tab);
+  });
+
+  // Dashboard state query
+  ipcMain.on("dashboard:get-state", (event) => {
+    event.sender.send("dashboard:state-updated", getDashboardState());
+  });
+
+  // Legacy dashboard support
+  ipcMain.on("get-file-lists", (event) => {
+    event.sender.send("file-lists", {
+      sentFiles: getFormattedFiles(),
+      receivedFiles: getConfig("receivedFiles") || [],
+    });
+  });
+
+  // Add files to share (via file picker dialog or drag-and-drop paths)
+  ipcMain.on("dashboard:add-files", async (event, customPaths = null) => {
+    try {
+      let pathsToAdd = [];
+      if (Array.isArray(customPaths) && customPaths.length > 0) {
+        pathsToAdd = filterValidFiles(customPaths);
+      } else {
+        const win = getDashboardWindow();
+        const result = await dialog.showOpenDialog(win || undefined, {
+          title: "Select Files to Share",
+          buttonLabel: "Share",
+          properties: ["openFile", "multiSelections"],
+        });
+        if (!result.canceled && result.filePaths && result.filePaths.length > 0) {
+          pathsToAdd = filterValidFiles(result.filePaths);
+        }
+      }
+
+      if (pathsToAdd.length > 0) {
+        sharedFiles = [...new Set([...sharedFiles, ...pathsToAdd])];
+        await startServer(sharedFiles);
+        updateTrayMenu(sharedFiles);
+        broadcastDashboardState();
+
+        showAppNotification({
+          title: "LocalShare",
+          body: `${pathsToAdd.length} file${pathsToAdd.length > 1 ? "s" : ""} added to share`,
+        });
+      }
+    } catch (err) {
+      logger.error("Error adding files via dashboard:", err);
+    }
+  });
+
+  // Remove single file
+  ipcMain.on("dashboard:remove-file", async (event, { path: filePath, id, tab }) => {
+    try {
+      if (tab === "send" || !tab) {
+        if (filePath) {
+          sharedFiles = sharedFiles.filter((p) => p !== filePath);
+        } else if (typeof id === "number" && sharedFiles[id] !== undefined) {
+          sharedFiles.splice(id, 1);
+        }
+        await startServer(sharedFiles);
+        updateTrayMenu(sharedFiles);
+        broadcastDashboardState();
+      } else if (tab === "received") {
+        const received = getConfig("receivedFiles") || [];
+        const updated = received.filter((item, index) => index !== id && item.path !== filePath);
+        setConfig("receivedFiles", updated);
+        broadcastDashboardState();
+      }
+    } catch (err) {
+      logger.error("Error removing file:", err);
+    }
+  });
+
+  ipcMain.on("remove-file", async (event, data) => {
+    const filePath = data && data.path ? data.path : (typeof data.id === "number" && sharedFiles[data.id] ? sharedFiles[data.id] : null);
+    ipcMain.emit("dashboard:remove-file", event, { path: filePath, id: data.id, tab: data.tab });
+  });
+
+  // Remove all files
+  ipcMain.on("dashboard:remove-all", async (event, tab) => {
+    try {
+      if (tab === "send" || !tab) {
+        sharedFiles.length = 0;
+        await startServer(sharedFiles);
+        updateTrayMenu(sharedFiles);
+        broadcastDashboardState();
+      } else if (tab === "received") {
+        setConfig("receivedFiles", []);
+        broadcastDashboardState();
+      }
+    } catch (err) {
+      logger.error("Error removing all files:", err);
+    }
+  });
+
+  ipcMain.on("remove-all-files", async (event, tab) => {
+    ipcMain.emit("dashboard:remove-all", event, tab);
+  });
+
+  // Clear all history (recent files and received files)
+  ipcMain.on("dashboard:clear-history", (event) => {
+    setConfig("lastFiles", []);
+    setConfig("receivedFiles", []);
+    broadcastDashboardState();
+    event.sender.send("dashboard:history-cleared", { success: true });
+    showAppNotification({
+      title: "LocalShare",
+      body: "Transfer history cleared successfully.",
+    });
+  });
+
+  // Quick action: Open QR code view
+  ipcMain.on("dashboard:open-qr", () => {
+    navigateDashboard("connect");
+  });
+
+  // Quick action: Open in browser
+  ipcMain.on("dashboard:open-browser", () => {
+    const port = getConfig("port") || 5199;
+    shell.openExternal(`http://localhost:${port}`);
+  });
+
+  // Quick action: Reveal in file manager
+  ipcMain.on("dashboard:open-folder", (event, filePath) => {
+    if (filePath && fs.existsSync(filePath)) {
+      shell.showItemInFolder(filePath);
+    }
+  });
+
+  // Quick action: Copy server link
+  ipcMain.on("dashboard:copy-link", (event) => {
+    const port = getConfig("port") || 5199;
+    const ip = getLocalIP();
+    const url = `http://${ip}:${port}`;
+    clipboard.writeText(url);
+  });
 
   // Open main dashboard window
   ipcMain.on("show-dashboard", () => {
     logger.info("IPC: Opening dashboard window");
-    createMainWindow();
+    showDashboardWindow();
   });
 
-  // Open settings window
+  // Open settings view
   ipcMain.on("open-settings", () => {
-    logger.info("IPC: Opening settings window");
-    showSettingsWindow();
+    logger.info("IPC: Navigating to settings view");
+    navigateDashboard("settings");
   });
 
   // Get settings
@@ -298,17 +525,17 @@ if (!gotTheLock) {
       // Save the new settings
       const success = updateConfig(newSettings);
 
-      // If autostart setting changed, update system login items and tray
+      // If autostart setting changed, update system login items
       if (success && currentAutostart !== newSettings.autostart) {
-        logger.info("Autostart setting changed, updating system and tray");
-
-        // Update system login item settings
+        logger.info("Autostart setting changed, updating system");
         app.setLoginItemSettings({
           openAtLogin: newSettings.autostart === true,
           path: process.execPath,
           args: [],
         });
       }
+
+      broadcastDashboardState();
 
       event.sender.send("settings:saved", {
         success,
@@ -346,12 +573,12 @@ if (!gotTheLock) {
       if (success) {
         // Update tray menu with new port info
         updateTrayMenu(sharedFiles, port);
+        broadcastDashboardState();
 
-        new Notification({
+        showAppNotification({
           title: "LocalShare",
           body: `Server restarted on port ${port}`,
-          icon: path.join(__dirname, "../../build/icon.ico"),
-        }).show();
+        });
       }
 
       event.sender.send("server:restarted", { success });
@@ -397,8 +624,7 @@ if (!gotTheLock) {
       // Check if dashboard should be opened at start
       const openDashboardAtStart = getConfig("openDashboardAtStart");
       if (openDashboardAtStart !== false) {
-        // Default to true if undefined
-        createMainWindow();
+        showDashboardWindow();
       }
 
       // Start server with shared files
@@ -406,34 +632,20 @@ if (!gotTheLock) {
       logger.info("Server start result:", success);
 
       app.on("activate", () => {
-        // On macOS, re-create window when dock icon is clicked
-        if (BrowserWindow.getAllWindows().length === 0) {
-          createMainWindow();
-        } else if (mainWindow) {
-          mainWindow.show();
-          mainWindow.focus();
-        }
+        showDashboardWindow();
       });
     } catch (err) {
       logger.error("Error during app startup:", err);
       new Notification({
         title: "LocalShare Error",
         body: "Failed to start app. Check logs for details.",
-        icon: path.join(__dirname, "../../build/icon.ico"),
+        icon: getAppIcon(),
       }).show();
     }
   });
 
   app.on("window-all-closed", () => {
     logger.debug("All windows closed");
-    // On Windows/Linux, keep running in tray when windows are closed
-
-    // On macOS, follow the platform convention
-    if (process.platform === "darwin") {
-      // On macOS, keep the app running but hide windows
-    } else {
-      // On Windows/Linux, keep running in background with tray
-    }
   });
 
   // Handle app quit properly
@@ -458,4 +670,9 @@ module.exports = {
   startServer,
   createMainWindow,
   clearAllSharedFiles,
+  broadcastDashboardState,
+  navigateDashboard,
+  showAppNotification,
 };
+
+

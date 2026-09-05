@@ -2,12 +2,29 @@
  * Configuration management for LocalShare
  * Handles reading and writing to a JSON config file
  */
-const { app } = require("electron");
 const fs = require("fs");
 const path = require("path");
 
+// Safe userData path resolver (supports Electron main process and child/node scripts)
+function getUserDataPath() {
+  try {
+    const electron = require("electron");
+    if (electron && electron.app && typeof electron.app.getPath === "function") {
+      return electron.app.getPath("userData");
+    }
+  } catch (e) {
+    // Ignore error in non-electron environments
+  }
+  const appData =
+    process.env.APPDATA ||
+    (process.platform === "darwin"
+      ? path.join(process.env.HOME || "", "Library", "Application Support")
+      : path.join(process.env.HOME || "", ".config"));
+  return path.join(appData, "LocalShare");
+}
+
 // Path to the config file in the user data directory
-const CONFIG_FILE = path.join(app.getPath("userData"), "config.json");
+const CONFIG_FILE = path.join(getUserDataPath(), "config.json");
 
 // Default configuration values
 const DEFAULT_CONFIG = {
@@ -25,16 +42,23 @@ const DEFAULT_CONFIG = {
  */
 function ensureConfigFile() {
   try {
-    if (!fs.existsSync(CONFIG_FILE)) {
-      // Create config directory if it doesn't exist
-      const configDir = path.dirname(CONFIG_FILE);
-      if (!fs.existsSync(configDir)) {
-        fs.mkdirSync(configDir, { recursive: true });
-      }
+    const configDir = path.dirname(CONFIG_FILE);
+    if (!fs.existsSync(configDir)) {
+      fs.mkdirSync(configDir, { recursive: true });
+    }
 
-      // Write default config
+    if (!fs.existsSync(CONFIG_FILE)) {
       fs.writeFileSync(CONFIG_FILE, JSON.stringify(DEFAULT_CONFIG, null, 2));
       console.log(`Created default config at ${CONFIG_FILE}`);
+    } else {
+      // Validate JSON content
+      try {
+        const raw = fs.readFileSync(CONFIG_FILE, "utf8");
+        JSON.parse(raw);
+      } catch (parseErr) {
+        console.warn(`Corrupted config at ${CONFIG_FILE}, restoring defaults`);
+        fs.writeFileSync(CONFIG_FILE, JSON.stringify(DEFAULT_CONFIG, null, 2));
+      }
     }
   } catch (err) {
     console.error("Error initializing config file:", err);
