@@ -261,6 +261,16 @@ async function startServer(filePaths = [], port = null) {
         const updated = [...msg.files, ...currentReceived];
         setConfig("receivedFiles", updated);
         broadcastDashboardState();
+
+        const fileCount = msg.files.length;
+        if (fileCount > 0) {
+          showAppNotification({
+            title: "LocalShare - File Received",
+            body: fileCount === 1
+              ? `Received "${msg.files[0].name}" (${msg.files[0].size})`
+              : `Received ${fileCount} files in Downloads/LocalShare`,
+          });
+        }
       } else if (msg && msg.type === "clipboard-copy" && typeof msg.text === "string") {
         logger.info("Received remote clipboard text (length:", msg.text.length, ")");
         clipboard.writeText(msg.text);
@@ -279,6 +289,11 @@ async function startServer(filePaths = [], port = null) {
             length: msg.text.length,
           });
         }
+      } else if (msg && msg.type === "custom-notification") {
+        showAppNotification({
+          title: msg.title || "LocalShare",
+          body: msg.message || "",
+        });
       }
     });
 
@@ -304,6 +319,67 @@ async function startServer(filePaths = [], port = null) {
  */
 function createMainWindow() {
   return showDashboardWindow();
+}
+
+/**
+ * Add files to share (via file picker dialog or passed file paths)
+ * @param {string[]|null} customPaths
+ * @returns {Promise<string[]>} updated sharedFiles
+ */
+async function addFilesToShare(customPaths = null) {
+  try {
+    let pathsToAdd = [];
+    if (Array.isArray(customPaths) && customPaths.length > 0) {
+      pathsToAdd = filterValidFiles(customPaths);
+    } else {
+      const win = getDashboardWindow();
+      const result = await dialog.showOpenDialog(win || undefined, {
+        title: "Select Files to Share",
+        buttonLabel: "Share",
+        properties: ["openFile", "multiSelections"],
+      });
+      if (!result.canceled && result.filePaths && result.filePaths.length > 0) {
+        pathsToAdd = filterValidFiles(result.filePaths);
+      }
+    }
+
+    if (pathsToAdd.length > 0) {
+      sharedFiles = [...new Set([...sharedFiles, ...pathsToAdd])];
+      await startServer(sharedFiles);
+      updateTrayMenu(sharedFiles);
+      broadcastDashboardState();
+
+      showAppNotification({
+        title: "LocalShare",
+        body: `${pathsToAdd.length} file${pathsToAdd.length > 1 ? "s" : ""} added to share`,
+      });
+    }
+  } catch (err) {
+    logger.error("Error adding files to share:", err);
+  }
+  return sharedFiles;
+}
+
+/**
+ * Remove a shared file by file path or index
+ * @param {string|null} filePath
+ * @param {number|null} id
+ * @returns {Promise<string[]>} updated sharedFiles
+ */
+async function removeSharedFile(filePath = null, id = null) {
+  try {
+    if (filePath) {
+      sharedFiles = sharedFiles.filter((p) => p !== filePath);
+    } else if (typeof id === "number" && sharedFiles[id] !== undefined) {
+      sharedFiles.splice(id, 1);
+    }
+    await startServer(sharedFiles);
+    updateTrayMenu(sharedFiles);
+    broadcastDashboardState();
+  } catch (err) {
+    logger.error("Error removing shared file:", err);
+  }
+  return sharedFiles;
 }
 
 // Handle second instance (when app is already running)
@@ -377,50 +453,14 @@ if (!gotTheLock) {
 
   // Add files to share (via file picker dialog or drag-and-drop paths)
   ipcMain.on("dashboard:add-files", async (event, customPaths = null) => {
-    try {
-      let pathsToAdd = [];
-      if (Array.isArray(customPaths) && customPaths.length > 0) {
-        pathsToAdd = filterValidFiles(customPaths);
-      } else {
-        const win = getDashboardWindow();
-        const result = await dialog.showOpenDialog(win || undefined, {
-          title: "Select Files to Share",
-          buttonLabel: "Share",
-          properties: ["openFile", "multiSelections"],
-        });
-        if (!result.canceled && result.filePaths && result.filePaths.length > 0) {
-          pathsToAdd = filterValidFiles(result.filePaths);
-        }
-      }
-
-      if (pathsToAdd.length > 0) {
-        sharedFiles = [...new Set([...sharedFiles, ...pathsToAdd])];
-        await startServer(sharedFiles);
-        updateTrayMenu(sharedFiles);
-        broadcastDashboardState();
-
-        showAppNotification({
-          title: "LocalShare",
-          body: `${pathsToAdd.length} file${pathsToAdd.length > 1 ? "s" : ""} added to share`,
-        });
-      }
-    } catch (err) {
-      logger.error("Error adding files via dashboard:", err);
-    }
+    await addFilesToShare(customPaths);
   });
 
   // Remove single file
   ipcMain.on("dashboard:remove-file", async (event, { path: filePath, id, tab }) => {
     try {
       if (tab === "send" || !tab) {
-        if (filePath) {
-          sharedFiles = sharedFiles.filter((p) => p !== filePath);
-        } else if (typeof id === "number" && sharedFiles[id] !== undefined) {
-          sharedFiles.splice(id, 1);
-        }
-        await startServer(sharedFiles);
-        updateTrayMenu(sharedFiles);
-        broadcastDashboardState();
+        await removeSharedFile(filePath, id);
       } else if (tab === "received") {
         const received = getConfig("receivedFiles") || [];
         const updated = received.filter((item, index) => index !== id && item.path !== filePath);
@@ -536,6 +576,7 @@ if (!gotTheLock) {
       }
 
       broadcastDashboardState();
+      updateTrayMenu(sharedFiles);
 
       event.sender.send("settings:saved", {
         success,
@@ -613,12 +654,17 @@ if (!gotTheLock) {
       sharedFiles = initialFiles || [];
       logger.info("Initial shared files:", sharedFiles);
 
-      // Create tray first - pass the clearAllSharedFiles function
+      // Create tray with quick action handlers and live state sync
       tray = createTray(
         sharedFiles,
         startServer,
         () => updateTrayMenu(sharedFiles),
-        clearAllSharedFiles
+        clearAllSharedFiles,
+        {
+          addFilesToShare,
+          removeSharedFile,
+          broadcastDashboardState,
+        }
       );
 
       // Check if dashboard should be opened at start
@@ -670,6 +716,8 @@ module.exports = {
   startServer,
   createMainWindow,
   clearAllSharedFiles,
+  addFilesToShare,
+  removeSharedFile,
   broadcastDashboardState,
   navigateDashboard,
   showAppNotification,

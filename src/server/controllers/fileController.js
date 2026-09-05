@@ -133,8 +133,8 @@ function uploadFiles(req, res) {
     };
   });
 
-  // Notify Windows desktop if enabled in settings
-  if (process.env.NOTIFICATIONS !== "false") {
+  // Notify desktop only if running standalone (no Electron parent)
+  if (!process.send && process.env.NOTIFICATIONS !== "false") {
     try {
       const fileCount = savedFiles.length;
       const title = 'LocalShare - File Received';

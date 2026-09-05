@@ -30,11 +30,19 @@ function sendNotification(req, res) {
   const title = req.query.title || 'LocalShare Notification';
   const message = req.query.message || 'A notification has been triggered';
 
-  notifier.notify({
-    title,
-    message,
-    icon: path.join(__dirname, '../../../icon.png')
-  });
+  if (process.send) {
+    process.send({
+      type: "custom-notification",
+      title,
+      message,
+    });
+  } else {
+    notifier.notify({
+      title,
+      message,
+      icon: path.join(__dirname, '../../../icon.png')
+    });
+  }
 
   res.json({
     success: true,

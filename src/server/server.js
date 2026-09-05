@@ -4,7 +4,6 @@
 const express = require("express");
 const path = require("path");
 const fs = require("fs");
-const notifier = require("node-notifier");
 const { createHttpTerminator } = require("http-terminator");
 
 // Setup simple logging for server process
@@ -189,33 +188,6 @@ try {
 
         // Save the terminator
         httpTerminator = createHttpTerminator({ server });
-
-        // Notify about shared files if enabled
-        if (global.sharedFiles.length > 0 && process.env.NOTIFICATIONS !== "false") {
-          if (global.sharedFiles.length === 1) {
-            logger.info(`Sharing file: ${global.sharedFiles[0].name}`);
-            try {
-              notifier.notify({
-                title: "LocalShare File Shared",
-                message: `Sharing file: ${global.sharedFiles[0].name}`,
-                icon: path.join(__dirname, "../../build/icon.ico"),
-              });
-            } catch (err) {
-              logger.error("Error showing notification:", err);
-            }
-          } else {
-            logger.info(`Sharing ${global.sharedFiles.length} files`);
-            try {
-              notifier.notify({
-                title: "LocalShare Files Shared",
-                message: `${global.sharedFiles.length} files shared`,
-                icon: path.join(__dirname, "../../build/icon.ico"),
-              });
-            } catch (err) {
-              logger.error("Error showing notification:", err);
-            }
-          }
-        }
       });
 
       server.on("error", (err) => {
@@ -224,15 +196,6 @@ try {
           startServer(port + 1);
         } else {
           logger.error("Server error:", err);
-          try {
-            notifier.notify({
-              title: "LocalShare Error",
-              message: "Failed to start server. Please try again.",
-              icon: path.join(__dirname, "../../build/icon.ico"),
-            });
-          } catch (notifyErr) {
-            logger.error("Error showing notification:", notifyErr);
-          }
         }
       });
     } catch (err) {
