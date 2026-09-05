@@ -1,0 +1,76 @@
+<!-- ==============================================
+     VIEW: API EXPLORER
+     ============================================== -->
+<section class="view-panel" id="view-api">
+  <div class="panel-card">
+    <div class="api-header">
+      <div>
+        <h3>LocalShare REST API</h3>
+        <p>Integrate or script file transfers using standard HTTP endpoints.</p>
+      </div>
+      <span class="badge-pill">Local Network Only</span>
+    </div>
+
+    <div class="api-endpoints-list">
+      <!-- Endpoint 1 -->
+      <div class="api-card">
+        <div class="api-card-header">
+          <span class="http-badge get">GET</span>
+          <span class="api-route">/api/shared-file</span>
+          <span class="api-desc">List all files currently shared by the PC</span>
+        </div>
+        <div class="api-code-block">
+          <pre><code>curl http://<span class="api-host-token">localhost:5199</span>/api/shared-file</code></pre>
+        </div>
+      </div>
+
+      <!-- Endpoint 2 -->
+      <div class="api-card">
+        <div class="api-card-header">
+          <span class="http-badge post">POST</span>
+          <span class="api-route">/api/upload</span>
+          <span class="api-desc">Upload files to PC (multipart/form-data)</span>
+        </div>
+        <div class="api-code-block">
+          <pre><code>curl -F "files=@photo.jpg" http://<span class="api-host-token">localhost:5199</span>/api/upload</code></pre>
+        </div>
+      </div>
+
+      <!-- Endpoint 3 -->
+      <div class="api-card">
+        <div class="api-card-header">
+          <span class="http-badge get">GET</span>
+          <span class="api-route">/download/:id</span>
+          <span class="api-desc">Download a file by its ID</span>
+        </div>
+        <div class="api-code-block">
+          <pre><code>curl -O http://<span class="api-host-token">localhost:5199</span>/download/0</code></pre>
+        </div>
+      </div>
+
+      <!-- Endpoint 4 -->
+      <div class="api-card">
+        <div class="api-card-header">
+          <span class="http-badge post">POST</span>
+          <span class="api-route">/api/clipboard</span>
+          <span class="api-desc">Send text to host PC clipboard (instantly paste with Ctrl+V)</span>
+        </div>
+        <div class="api-code-block">
+          <pre><code>curl -X POST -H "Content-Type: application/json" -d '{"text":"Hello from phone!"}' http://<span class="api-host-token">localhost:5199</span>/api/clipboard</code></pre>
+        </div>
+      </div>
+
+      <!-- Endpoint 5 -->
+      <div class="api-card">
+        <div class="api-card-header">
+          <span class="http-badge get">GET</span>
+          <span class="api-route">/api/server-info</span>
+          <span class="api-desc">Get host computer name, platform, and port</span>
+        </div>
+        <div class="api-code-block">
+          <pre><code>curl http://<span class="api-host-token">localhost:5199</span>/api/server-info</code></pre>
+        </div>
+      </div>
+    </div>
+  </div>
+</section>

@@ -1,0 +1,126 @@
+/* =======================================================
+   VIEW 2: CONNECT & QR CODE STYLES
+   ======================================================= */
+.connect-card {
+  display: flex;
+  flex-direction: column;
+  gap: 28px;
+}
+
+.qr-display-wrapper {
+  display: flex;
+  align-items: center;
+  gap: 32px;
+  padding: 10px 0;
+}
+
+.qr-box {
+  background: white;
+  padding: 12px;
+  border-radius: var(--radius-md);
+  box-shadow: 0 4px 20px rgba(0, 0, 0, 0.15);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  flex-shrink: 0;
+}
+
+.qr-box img {
+  display: block;
+  image-rendering: pixelated;
+}
+
+.qr-box img:not([src]),
+.qr-box img[src=""] {
+  visibility: hidden;
+}
+
+.qr-info {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+}
+
+.qr-info h3 {
+  font-family: var(--font-brand);
+  font-size: 1.4rem;
+  color: var(--text-main);
+}
+
+.qr-info p {
+  color: var(--text-muted);
+  font-size: 0.9rem;
+  line-height: 1.5;
+  max-width: 440px;
+}
+
+.url-badge-box {
+  display: inline-flex;
+  align-items: center;
+  gap: 10px;
+  background: var(--surface-item);
+  border: 1px solid var(--border-subtle);
+  border-radius: var(--radius-md);
+  padding: 6px 12px;
+  width: fit-content;
+}
+
+.url-text {
+  font-family: monospace;
+  font-size: 0.92rem;
+  color: var(--primary);
+  font-weight: 600;
+}
+
+.connect-instructions h4 {
+  font-family: var(--font-brand);
+  font-size: 1rem;
+  color: var(--text-main);
+  margin-bottom: 12px;
+}
+
+.steps-grid {
+  display: grid;
+  grid-template-columns: repeat(3, 1fr);
+  gap: 16px;
+}
+
+.step-card {
+  background: var(--surface-item);
+  border: 1px solid var(--border-subtle);
+  border-radius: var(--radius-md);
+  padding: 16px;
+  display: flex;
+  gap: 14px;
+}
+
+.step-number {
+  width: 28px;
+  height: 28px;
+  border-radius: 50%;
+  background: var(--primary-subtle);
+  color: var(--primary);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-weight: 700;
+  font-size: 0.85rem;
+  flex-shrink: 0;
+}
+
+.step-content {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+}
+
+.step-content strong {
+  font-size: 0.9rem;
+  color: var(--text-main);
+}
+
+.step-content span {
+  font-size: 0.8rem;
+  color: var(--text-muted);
+  line-height: 1.4;
+}

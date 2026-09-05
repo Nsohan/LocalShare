@@ -1,0 +1,77 @@
+<!-- Dedicated Server Response JSON Format Spec Modal -->
+<div class="modal-overlay" id="jsonFormatModal" style="display: none;">
+  <div class="modal-card modal-card-spec">
+    <div class="modal-header">
+      <div class="modal-title-wrap">
+        <div class="modal-icon-badge cyan">
+          <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+            <polyline points="16 18 22 12 16 6"></polyline>
+            <polyline points="8 6 2 12 8 18"></polyline>
+          </svg>
+        </div>
+        <div>
+          <h3 class="modal-title">Device Server API Spec</h3>
+          <span class="modal-subtitle">Expected JSON formats for pairing with LocalShare</span>
+        </div>
+      </div>
+      <div class="modal-header-actions">
+        <button type="button" class="modal-close-btn" id="closeJsonFormatModalBtn" title="Close modal">&times;</button>
+      </div>
+    </div>
+
+    <div class="modal-body modal-spec-body">
+      <div class="api-poll-overview">
+        <div class="api-endpoint-badge">
+          <span class="method-tag">HTTP GET</span>
+          <span class="endpoint-text">/?key=&lt;6-digit&gt;&amp;pc=&lt;hostname&gt;</span>
+        </div>
+        <p class="api-spec-explainer">
+          LocalShare desktop polls your mobile server every <strong>1 second</strong>. Send the header <code>X-Pairing-Key: &lt;6-digit&gt;</code> and query param <code>?key=...</code>.
+        </p>
+      </div>
+
+      <!-- 1. Success Response -->
+      <div class="api-help-code-group">
+        <div class="code-title-row">
+          <span class="code-tag success">1. Success Response (Key Accepted) &bull; 200 OK</span>
+          <button type="button" class="btn-copy-code" id="copySuccessJsonBtn" title="Copy JSON">Copy JSON</button>
+        </div>
+        <pre class="api-json-pre"><code id="codeSuccessJson">{
+  "success": true,
+  "status": "connected",
+  "deviceName": "My Phone",
+  "message": "Device paired successfully"
+}</code></pre>
+      </div>
+
+      <!-- 2. Pending Response -->
+      <div class="api-help-code-group">
+        <div class="code-title-row">
+          <span class="code-tag pending">2. Pending Response (Waiting for Key) &bull; 202 or 200</span>
+          <button type="button" class="btn-copy-code" id="copyPendingJsonBtn" title="Copy JSON">Copy JSON</button>
+        </div>
+        <pre class="api-json-pre"><code id="codePendingJson">{
+  "success": false,
+  "status": "pending",
+  "message": "Waiting for key entry on phone"
+}</code></pre>
+      </div>
+
+      <!-- Footer tip -->
+      <div class="api-help-footer-tip">
+        <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+          <circle cx="12" cy="12" r="10"></circle>
+          <line x1="12" y1="16" x2="12" y2="12"></line>
+          <line x1="12" y1="8" x2="12.01" y2="8"></line>
+        </svg>
+        <span>Once your server returns <code>"success": true</code>, LocalShare instantly connects your device.</span>
+      </div>
+
+      <div class="modal-actions" style="margin-top: 6px;">
+        <button type="button" class="btn btn-primary" id="dismissJsonFormatModalBtn" style="width: 100%;">
+          Got it
+        </button>
+      </div>
+    </div>
+  </div>
+</div>

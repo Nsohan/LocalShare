@@ -1,0 +1,107 @@
+<!-- ==============================================
+     VIEW: SETTINGS
+     ============================================== -->
+<section class="view-panel" id="view-settings">
+  <div class="panel-card settings-card">
+    <form id="settingsForm">
+      <!-- General Settings -->
+      <div class="settings-group">
+        <h3 class="settings-group-title">General Preferences</h3>
+
+        <div class="setting-row">
+          <div class="setting-meta">
+            <label class="setting-title" for="setAutostart">Start with Windows</label>
+            <span class="setting-desc">Automatically launch LocalShare when your computer starts</span>
+          </div>
+          <label class="toggle-switch">
+            <input type="checkbox" id="setAutostart" />
+            <span class="slider"></span>
+          </label>
+        </div>
+
+        <div class="setting-row">
+          <div class="setting-meta">
+            <label class="setting-title" for="setOpenDashboard">Open Dashboard on Launch</label>
+            <span class="setting-desc">Display the dashboard window automatically when LocalShare starts</span>
+          </div>
+          <label class="toggle-switch">
+            <input type="checkbox" id="setOpenDashboard" />
+            <span class="slider"></span>
+          </label>
+        </div>
+
+        <div class="setting-row">
+          <div class="setting-meta">
+            <label class="setting-title" for="setNotifications">Desktop Notifications</label>
+            <span class="setting-desc">Show Windows notifications when files are added, received, or downloaded</span>
+          </div>
+          <label class="toggle-switch">
+            <input type="checkbox" id="setNotifications" />
+            <span class="slider"></span>
+          </label>
+        </div>
+      </div>
+
+      <!-- Server Settings -->
+      <div class="settings-group">
+        <h3 class="settings-group-title">Network & Server</h3>
+
+        <div class="setting-row">
+          <div class="setting-meta">
+            <label class="setting-title" for="setPort">Web Server Port</label>
+            <span class="setting-desc">Port used by the local web server (Default: 5199)</span>
+          </div>
+          <div class="setting-input-wrap">
+            <input type="number" id="setPort" min="1024" max="65535" class="input-text" />
+            <button type="button" class="btn btn-sm btn-warning" id="restartServerBtn" style="display: none;">Restart Server</button>
+          </div>
+        </div>
+
+        <div class="setting-row">
+          <div class="setting-meta">
+            <label class="setting-title" for="setTheme">Interface Theme</label>
+            <span class="setting-desc">Choose your preferred visual appearance</span>
+          </div>
+          <select id="setTheme" class="select-dropdown">
+            <option value="dark">Dark Theme (Default)</option>
+            <option value="light">Light Theme</option>
+            <option value="system">Match System</option>
+          </select>
+        </div>
+      </div>
+
+      <!-- Storage & History -->
+      <div class="settings-group">
+        <h3 class="settings-group-title">Storage & History</h3>
+
+        <div class="setting-row">
+          <div class="setting-meta">
+            <label class="setting-title">Received Files Folder</label>
+            <span class="setting-desc">Location where files sent from mobile devices are saved</span>
+          </div>
+          <button type="button" class="btn btn-secondary btn-sm" id="openReceivedFolderBtn">Open Downloads/LocalShare</button>
+        </div>
+
+        <div class="setting-row">
+          <div class="setting-meta">
+            <label class="setting-title">Clear Transfer History</label>
+            <span class="setting-desc">Reset the list of received and recently shared files</span>
+          </div>
+          <button type="button" class="btn btn-ghost danger btn-sm" id="clearHistoryBtn">Clear History</button>
+        </div>
+
+        <div class="setting-row">
+          <div class="setting-meta">
+            <label class="setting-title">Application Logs</label>
+            <span class="setting-desc">View diagnostic logs in your default text editor</span>
+          </div>
+          <button type="button" class="btn btn-secondary btn-sm" id="openLogsBtn">View Logs</button>
+        </div>
+      </div>
+
+      <div class="settings-actions">
+        <button type="submit" class="btn btn-primary" id="saveSettingsBtn">Save Changes</button>
+      </div>
+    </form>
+  </div>
+</section>

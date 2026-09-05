@@ -1,0 +1,109 @@
+<!-- ==============================================
+     VIEW: YOUR DEVICES
+     ============================================== -->
+<section class="view-panel" id="view-devices">
+  <div class="devices-header-row">
+    <div class="devices-header-meta">
+      <h3 class="section-title">Your Paired Devices</h3>
+      <p class="section-subtitle">Manage and communicate directly with your mobile phones and local network servers.</p>
+    </div>
+    <div class="devices-header-actions">
+      <button class="btn btn-secondary btn-sm" id="devicesViewApiHelpBtn" title="View Server Response JSON Format">
+        <span class="help-bubble-icon">?</span>
+        <span>JSON Format</span>
+      </button>
+      <button class="btn btn-primary" id="openAddDeviceModalBtn">
+        <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+          <line x1="12" y1="5" x2="12" y2="19"></line>
+          <line x1="5" y1="12" x2="19" y2="12"></line>
+        </svg>
+        <span>Add Device</span>
+      </button>
+    </div>
+  </div>
+
+  <!-- Devices Quick Stats -->
+  <div class="stats-grid">
+    <div class="stat-card">
+      <div class="stat-icon-wrapper blue">
+        <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+          <rect x="5" y="2" width="14" height="20" rx="2" ry="2"></rect>
+          <line x1="12" y1="18" x2="12.01" y2="18"></line>
+        </svg>
+      </div>
+      <div class="stat-data">
+        <span class="stat-label">Total Devices</span>
+        <span class="stat-value" id="statDevicesCount">0 Devices</span>
+      </div>
+    </div>
+
+    <div class="stat-card">
+      <div class="stat-icon-wrapper emerald">
+        <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+          <path d="M22 11.08V12a10 10 0 1 1-5.93-9.14"></path>
+          <polyline points="22 4 12 14.01 9 11.01"></polyline>
+        </svg>
+      </div>
+      <div class="stat-data">
+        <span class="stat-label">Active Connection</span>
+        <span class="stat-value" id="statDevicesOnline">0 Online</span>
+      </div>
+    </div>
+
+    <div class="stat-card">
+      <div class="stat-icon-wrapper purple">
+        <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+          <circle cx="12" cy="12" r="10"></circle>
+          <path d="m4.93 4.93 4.24 4.24"></path>
+          <path d="m14.83 9.17 4.24-4.24"></path>
+          <path d="m14.83 14.83 4.24 4.24"></path>
+          <path d="m9.17 14.83-4.24 4.24"></path>
+        </svg>
+      </div>
+      <div class="stat-data">
+        <span class="stat-label">Pairing Method</span>
+        <span class="stat-value">6-Digit PIN</span>
+      </div>
+    </div>
+
+    <div class="stat-card">
+      <div class="stat-icon-wrapper amber">
+        <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+          <path d="M5 12.55a11 11 0 0 1 14.08 0"></path>
+          <path d="M1.42 9a16 16 0 0 1 21.16 0"></path>
+          <path d="M8.53 16.11a6 6 0 0 1 6.95 0"></path>
+        </svg>
+      </div>
+      <div class="stat-data">
+        <span class="stat-label">Network</span>
+        <span class="stat-value" id="statDevicesSubnet">Wi-Fi LAN</span>
+      </div>
+    </div>
+  </div>
+
+  <!-- Paired Devices Container -->
+  <div class="panel-card devices-panel-card">
+    <div class="devices-grid" id="devicesList">
+      <!-- Dynamically populated device cards -->
+    </div>
+
+    <!-- Empty State -->
+    <div class="empty-state" id="devicesEmptyState">
+      <div class="empty-icon-bubble">
+        <svg width="36" height="36" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round">
+          <rect x="5" y="2" width="14" height="20" rx="2" ry="2"></rect>
+          <line x1="12" y1="18" x2="12.01" y2="18"></line>
+        </svg>
+      </div>
+      <h3>No devices connected yet</h3>
+      <p>Add your mobile phone running a local server (e.g. <code>192.168.1.4:8000</code>) and pair it using a secure 6-digit key.</p>
+      <button class="btn btn-primary" id="emptyAddDeviceBtn">
+        <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+          <line x1="12" y1="5" x2="12" y2="19"></line>
+          <line x1="5" y1="12" x2="19" y2="12"></line>
+        </svg>
+        <span>Add Your First Device</span>
+      </button>
+    </div>
+  </div>
+</section>

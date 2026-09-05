@@ -14,8 +14,9 @@ LocalShare turns your computer into a lightweight, high-speed local sharing hub.
   - **Mobile → PC**: Upload photos, videos, or documents directly from your phone into your computer's `Downloads/LocalShare` folder.
 - **🖥️ Unified Desktop Dashboard**:
   - **Files & Sharing**: Interactive drag-and-drop zone, file category badges, and quick links.
-  - **Connect & QR**: High-resolution QR code generator for instant phone camera scan-to-connect.
-  - **API Explorer**: Built-in REST API reference with copyable `curl` examples.
+  - **Connect & QR**: Native high-resolution QR code generator for instant phone camera scan-to-connect.
+  - **📱 Your Devices**: Add and manage paired local mobile devices with 6-digit PIN verification, real-time 1-second HTTP polling, and latency ping monitoring.
+  - **API Explorer**: Built-in REST API reference with copyable `curl` examples and pairing specifications.
   - **Settings**: Windows autostart toggle, notifications mute, custom port selector, and theme switcher.
   - **About**: Diagnostic runtime versions (Electron, Node.js) and operating system info.
 - **📱 Responsive Mobile Web Client**:
@@ -93,12 +94,22 @@ npm run package
    - A Windows desktop notification will notify you.
    - Files are saved directly to `Downloads\LocalShare\` and listed under the dashboard's **"Received from Mobile"** tab.
 
-### 3. Sharing Directly from Windows Explorer
+### 3. Pairing Local Devices ("Your Devices")
+1. Open the dashboard and navigate to **"Your Devices"** in the sidebar.
+2. Click **"Add Device"** (or press the **+** button).
+3. Enter your mobile or target device's local address (e.g., `192.168.1.4:8000`).
+4. Note the generated **6-digit pairing key** (or click to refresh a new one).
+5. Enter the 6-digit key into your phone / device server.
+6. The dashboard automatically polls your device every 1 second (`GET /pair?key=...` or `/status`).
+7. Once verified, the device is instantly paired, displaying connection status, real-time ping latency, and quick browser open links.
+8. Click **"(?) JSON Format"** in the pairing dialog anytime to view the expected JSON API format and sample curl commands.
+
+### 4. Sharing Directly from Windows Explorer
 1. In Windows File Explorer, right-click any file.
 2. Select **"Send to"** &rarr; **"Send with LocalShare"** *(requires packaging/installing or running the NSIS shortcut script)*.
 3. The running instance will automatically add the file and update the server.
 
-### 4. Windows System Tray
+### 5. Windows System Tray
 - Closing the dashboard window minimizes the app to the Windows notification tray (near the clock).
 - Right-click the tray icon to:
   - Quickly view active shared files or open their folder locations.
@@ -129,6 +140,27 @@ curl -F "files=@my-document.pdf" http://<PC-IP>:5199/api/upload
 curl http://<PC-IP>:5199/api/shared-file
 ```
 
+### 📱 Device Pairing Protocol ("Your Devices")
+
+When pairing with external mobile or local device servers (e.g., `http://192.168.1.4:8000`), LocalShare automatically polls the device's endpoint every 1 second:
+
+```http
+GET http://192.168.1.4:8000/pair?key=482910
+GET http://192.168.1.4:8000/status?pairingKey=482910
+```
+
+#### Expected Success Response (`200 OK`):
+```json
+{
+  "success": true,
+  "paired": true,
+  "deviceName": "Galaxy S24 Ultra",
+  "deviceType": "mobile",
+  "ip": "192.168.1.4",
+  "port": 8000
+}
+```
+
 ---
 
 ## 🛠️ Project Structure
@@ -153,7 +185,13 @@ LocalShare/
 │   │       ├── qrcode.js    # QR Code modal
 │   │       └── settings.js  # Settings window manager
 │   ├── pages/
-│   │   ├── dashboard/       # Unified Desktop Dashboard (HTML/CSS/JS)
+│   │   ├── dashboard/       # Decentralized Desktop Dashboard
+│   │   │   ├── views/       # HTML section partials (files, connect, devices, modals...)
+│   │   │   ├── css/         # Modular section stylesheets (base, layout, devices...)
+│   │   │   ├── js/          # Section controller scripts (state, files, modals...)
+│   │   │   ├── index.html   # Main dashboard layout skeleton
+│   │   │   ├── style.css    # Unified stylesheet aggregator
+│   │   │   └── script.js    # Section orchestrator & IPC coordinator
 │   │   └── home/            # Mobile & Web Client interface (HTML/CSS/JS)
 │   └── server/
 │       ├── server.js        # Express HTTP server process (runs in child process)
