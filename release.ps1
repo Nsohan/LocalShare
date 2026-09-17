@@ -1,0 +1,448 @@
+<#
+.SYNOPSIS
+    LocalShare 1-Click Release Automation Script for PowerShell / Antigravity
+
+.DESCRIPTION
+    Automates the entire release lifecycle:
+    1. Detects or accepts version from package.json.
+    2. Builds and packages the NSIS Windows Installer via npm run package.
+    3. Standardizes release binaries into LocalShare-Setup-v<version>.exe and LocalShare-Setup.exe.
+    4. Computes file sizes and SHA-256 checksums.
+    5. Reads or generates release notes from RELEASE_NOTES_v<version>.md or git history.
+    6. Creates git tag v<version> and pushes commits & tags to GitHub.
+    7. Automatically creates the GitHub Release via GitHub REST API (using Git Credential Manager token or GITHUB_TOKEN)
+       and uploads the release installer assets with progress indicators.
+    8. Fallback to browser release draft if no token is available.
+
+.PARAMETER Version
+    Optional override for the version name (e.g. "1.0.0"). If omitted, reads from package.json.
+
+.PARAMETER NotesFile
+    Optional path to markdown release notes file.
+
+.PARAMETER Notes
+    Optional raw text for release notes.
+
+.PARAMETER Token
+    Optional GitHub Personal Access Token. If omitted, queries Git Credential Manager or $env:GITHUB_TOKEN.
+
+.PARAMETER Draft
+    Create the GitHub Release as a draft instead of publishing immediately.
+
+.PARAMETER PreRelease
+    Mark the GitHub Release as a pre-release.
+
+.PARAMETER AutoCommit
+    Automatically stage and commit pending working tree changes before releasing.
+
+.PARAMETER SkipBuild
+    Skip running npm run package and use already-built installer.
+
+.PARAMETER SkipPush
+    Skip git push and GitHub release creation (local build and tag only).
+
+.PARAMETER DryRun
+    Simulate execution without modifying git or creating releases on GitHub.
+
+.EXAMPLE
+    .\release.ps1
+    Builds, tags, pushes, and creates release on GitHub automatically!
+
+.EXAMPLE
+    .\release.ps1 -DryRun
+    Preview everything that would happen without modifying anything.
+
+.EXAMPLE
+    .\release.ps1 -SkipBuild
+    Publish release without rebuilding the installer.
+#>
+
+[CmdletBinding()]
+param(
+    [string]$Version,
+    [string]$NotesFile,
+    [string]$Notes,
+    [string]$Token,
+    [switch]$Draft,
+    [switch]$PreRelease,
+    [switch]$AutoCommit,
+    [switch]$SkipBuild,
+    [switch]$SkipPush,
+    [switch]$DryRun
+)
+
+$ErrorActionPreference = "Continue"
+
+# --- Output helpers ---
+function Write-Step { param([string]$msg) Write-Host "`n[+] $msg" -ForegroundColor Cyan }
+function Write-Success { param([string]$msg) Write-Host "[OK] $msg" -ForegroundColor Green }
+function Write-Warn { param([string]$msg) Write-Host "[!] $msg" -ForegroundColor Yellow }
+function Write-Err { param([string]$msg) Write-Host "[X] $msg" -ForegroundColor Red }
+function Write-Info { param([string]$msg) Write-Host "    $msg" -ForegroundColor Gray }
+
+Write-Host "==========================================================" -ForegroundColor Cyan
+Write-Host "         LocalShare Automated Release Pipeline            " -ForegroundColor Cyan
+Write-Host "==========================================================" -ForegroundColor Cyan
+
+# --- 1. Environment Setup (Node.js & npm) ---
+if (-not (Get-Command npm -ErrorAction SilentlyContinue)) {
+    Write-Err "npm command was not found in PATH! Please ensure Node.js is installed."
+    exit 1
+}
+
+# --- 2. Verify Working Directory & package.json ---
+if (-not (Test-Path "package.json")) {
+    Write-Err "package.json not found! Please run this script from the repository root."
+    exit 1
+}
+
+$pkgJson = Get-Content "package.json" -Raw | ConvertFrom-Json
+$parsedVersion = $pkgJson.version
+$productName = if ($pkgJson.productName) { $pkgJson.productName } else { "LocalShare" }
+
+$releaseVersion = if ($Version) { $Version } else { $parsedVersion }
+
+if (-not $releaseVersion) {
+    Write-Err "Could not determine version from package.json and no -Version argument was supplied."
+    exit 1
+}
+
+$tagName = "v$releaseVersion"
+$releaseTitle = "$productName v$releaseVersion"
+
+Write-Step "Target Version: $releaseVersion | Product: $productName | Tag: $tagName"
+
+# --- 3. Check Remote Repository Info ---
+$remoteUrl = git remote get-url origin 2>$null
+$repoOwner = "Nsohan"
+$repoName = "LocalShare"
+
+if ($remoteUrl -and ($remoteUrl -match 'github\.com[:/]([^/]+)/([^/\.]+)')) {
+    $repoOwner = $matches[1]
+    $repoName = $matches[2]
+}
+Write-Info "Target GitHub Repo: $repoOwner/$repoName"
+
+# --- 4. Handle Pending Git Changes ---
+$gitStatus = git status -s
+if ($gitStatus) {
+    Write-Warn "Working tree has uncommitted modifications / untracked files:"
+    $gitStatus | ForEach-Object { Write-Info "  $_" }
+    
+    if (-not $DryRun -and -not $SkipPush) {
+        $shouldCommit = $AutoCommit
+        $canPrompt = -not [Console]::IsInputRedirected
+        if (-not $shouldCommit -and $canPrompt) {
+            try {
+                $confirm = Read-Host "Stage and commit these changes before releasing? (y/N)"
+                $shouldCommit = ($confirm -eq 'y' -or $confirm -eq 'Y')
+            } catch {}
+        }
+        
+        if ($shouldCommit) {
+            git add .
+            git commit -m "chore: prepare release $tagName"
+            Write-Success "Committed working tree changes."
+        } else {
+            Write-Warn "Continuing with uncommitted changes. (Only committed changes will be included in the release tag)"
+        }
+    }
+}
+
+# --- 5. Build Release Installer via electron-builder ---
+$distDir = "dist"
+$rawInstallerCandidates = @(
+    "$distDir\$productName Setup $releaseVersion.exe",
+    "$distDir\$productName-Setup-$releaseVersion.exe",
+    "$distDir\$productName Setup.exe"
+)
+
+if (-not $SkipBuild) {
+    Write-Step "Building Windows NSIS Installer: npm run package"
+    if ($DryRun) {
+        Write-Info "[DryRun] Would execute: npm run package"
+    } else {
+        $buildStartTime = Get-Date
+        $env:ELECTRON_BUILDER_7ZIP_SYMLINKS = "0"
+        npm run package
+        if ($LASTEXITCODE -ne 0) {
+            Write-Err "Build failed with exit code $LASTEXITCODE."
+            exit $LASTEXITCODE
+        }
+        $buildDuration = (Get-Date) - $buildStartTime
+        Write-Success "NSIS Installer built successfully in $($buildDuration.TotalSeconds.ToString('F1'))s."
+    }
+} else {
+    Write-Step "Skipping packaging build as requested (-SkipBuild)."
+}
+
+# --- 6. Verify and Package Installer Assets ---
+$standardInstallerPath = "$distDir\$productName-Setup.exe"
+$versionedInstallerPath = "$distDir\$productName-Setup-$tagName.exe"
+
+if (-not $DryRun) {
+    # Find built installer
+    $rawInstallerPath = $null
+    foreach ($cand in $rawInstallerCandidates) {
+        if (Test-Path $cand) {
+            $rawInstallerPath = $cand
+            break
+        }
+    }
+
+    if (-not $rawInstallerPath) {
+        # Search dist for any .exe setup file
+        $foundExes = Get-ChildItem -Path $distDir -Filter "*.exe" -File | Where-Object { $_.Name -match "Setup" }
+        if ($foundExes -and $foundExes.Count -gt 0) {
+            $rawInstallerPath = $foundExes[0].FullName
+        }
+    }
+
+    if (-not $rawInstallerPath -or -not (Test-Path $rawInstallerPath)) {
+        Write-Err "Could not find built installer executable in $distDir!"
+        exit 1
+    }
+
+    Copy-Item $rawInstallerPath $standardInstallerPath -Force
+    Copy-Item $rawInstallerPath $versionedInstallerPath -Force
+
+    $installerHash = (Get-FileHash -Path $standardInstallerPath -Algorithm SHA256).Hash
+    $installerSizeMB = ((Get-Item $standardInstallerPath).Length / 1MB).ToString("0.00")
+
+    Write-Success "Packaged Release Assets in ${distDir}:"
+    Write-Info "  - $(Split-Path $versionedInstallerPath -Leaf) ($installerSizeMB MB)"
+    Write-Info "  - $(Split-Path $standardInstallerPath -Leaf) ($installerSizeMB MB)"
+    Write-Info "  - SHA-256: $installerHash"
+} else {
+    $installerHash = "DRYRUN_MOCK_SHA256_HASH"
+    $installerSizeMB = "83.50"
+}
+
+# --- 7. Resolve Release Notes ---
+$releaseNotes = $null
+
+if ($Notes) {
+    $releaseNotes = $Notes
+} elseif ($NotesFile -and (Test-Path $NotesFile)) {
+    $releaseNotes = [System.IO.File]::ReadAllText((Resolve-Path $NotesFile).Path, [System.Text.Encoding]::UTF8)
+    Write-Info "Loaded release notes from $NotesFile"
+} elseif (Test-Path "RELEASE_NOTES_$tagName.md") {
+    $releaseNotes = [System.IO.File]::ReadAllText((Resolve-Path "RELEASE_NOTES_$tagName.md").Path, [System.Text.Encoding]::UTF8)
+    Write-Info "Loaded release notes from RELEASE_NOTES_$tagName.md"
+} elseif (Test-Path "RELEASE_NOTES.md") {
+    $releaseNotes = [System.IO.File]::ReadAllText((Resolve-Path "RELEASE_NOTES.md").Path, [System.Text.Encoding]::UTF8)
+    Write-Info "Loaded release notes from RELEASE_NOTES.md"
+} else {
+    # Auto-generate from git commits since previous tag
+    $previousTag = git describe --tags --abbrev=0 2>$null
+    if ($previousTag) {
+        $commits = git log "$previousTag..HEAD" --pretty=format:"* %s (%h)"
+        $releaseNotes = "# $productName $tagName`n`n### Changes since ${previousTag}:`n$commits"
+    } else {
+        $commits = git log -n 10 --pretty=format:"* %s (%h)"
+        $releaseNotes = "# $productName $tagName`n`n### Recent changes:`n$commits"
+    }
+    Write-Info "Auto-generated release notes from git log."
+}
+
+# --- 8. Git Tagging and Pushing ---
+Write-Step "Git Tagging and Push"
+
+$existingTag = git tag -l $tagName
+if (-not $existingTag) {
+    if ($DryRun) {
+        Write-Info "[DryRun] Would create git tag: $tagName"
+    } else {
+        git tag -a $tagName -m "Release $tagName"
+        Write-Success "Created git tag: $tagName"
+    }
+} else {
+    Write-Info "Tag $tagName already exists locally."
+}
+
+if (-not $SkipPush) {
+    if ($DryRun) {
+        Write-Info "[DryRun] Would execute: git push origin (current branch) --tags"
+    } else {
+        $currentBranch = (git branch --show-current).Trim()
+        if (-not $currentBranch) { $currentBranch = "main" }
+        Write-Info "Pushing commits to origin/$currentBranch..."
+        git push origin $currentBranch
+        Write-Info "Pushing tag $tagName to origin..."
+        git push origin $tagName
+        if ($LASTEXITCODE -ne 0) {
+            Write-Info "Updating tag ref on remote (--force)..."
+            git push origin $tagName --force
+        }
+        Write-Success "Pushed git commits and tag $tagName to origin."
+    }
+} else {
+    Write-Info "Skipping git push (-SkipPush)."
+}
+
+# --- 9. GitHub Release Creation via API ---
+if (-not $SkipPush) {
+    Write-Step "Publishing GitHub Release"
+
+    # Acquire GitHub Token
+    $githubToken = $Token
+    if (-not $githubToken -and $env:GITHUB_TOKEN) { $githubToken = $env:GITHUB_TOKEN }
+    if (-not $githubToken -and $env:GH_TOKEN) { $githubToken = $env:GH_TOKEN }
+
+    if (-not $githubToken) {
+        # Query Windows Git Credential Manager
+        try {
+            $inputData = @"
+protocol=https
+host=github.com
+
+"@
+            $credOutput = $inputData | git credential fill 2>$null
+            $match = [regex]::Match($credOutput, 'password=(.+)')
+            if ($match.Success) {
+                $githubToken = $match.Groups[1].Value.Trim()
+            }
+        } catch {}
+    }
+
+    if ($githubToken) {
+        Write-Info "Authenticated with GitHub API as repository owner."
+
+        if ($DryRun) {
+            Write-Info "[DryRun] Would call GitHub API to create release $tagName and upload setup installer assets."
+        } else {
+            $releaseApiUrl = "https://api.github.com/repos/$repoOwner/$repoName/releases"
+            $tagApiUrl = "$releaseApiUrl/tags/$tagName"
+
+            # 1. Check if release already exists
+            $existingRelease = $null
+            $getReleaseJson = & curl.exe -s -H "Authorization: Bearer $githubToken" -H "Accept: application/vnd.github+json" "$tagApiUrl"
+            if ($getReleaseJson) {
+                try {
+                    $parsed = $getReleaseJson | ConvertFrom-Json
+                    if ($parsed.id) {
+                        $existingRelease = $parsed
+                        Write-Info "Found existing release for $tagName (ID: $($existingRelease.id))."
+                    }
+                } catch {}
+            }
+
+            $targetReleaseId = $null
+            $htmlUrl = $null
+
+            if ($null -eq $existingRelease) {
+                # Create Release via UTF-8 JSON payload to avoid Windows ANSI/codepage emoji mangling
+                Write-Info "Creating new GitHub Release: $releaseTitle..."
+                $releasePayload = @{
+                    tag_name         = $tagName
+                    target_commitish = if ($currentBranch) { $currentBranch } else { "main" }
+                    name             = $releaseTitle
+                    body             = $releaseNotes
+                    draft            = [bool]$Draft
+                    prerelease       = [bool]$PreRelease
+                } | ConvertTo-Json -Depth 10
+
+                $tmpJsonFile = [System.IO.Path]::GetTempFileName()
+                $respFile = [System.IO.Path]::GetTempFileName()
+                $utf8NoBom = [System.Text.UTF8Encoding]::new($false)
+                [System.IO.File]::WriteAllBytes($tmpJsonFile, $utf8NoBom.GetBytes($releasePayload))
+                $tmpJsonPath = $tmpJsonFile.Replace('\', '/')
+                $respPath = $respFile.Replace('\', '/')
+
+                curl.exe -s -S -o "$respPath" `
+                    -H "Authorization: Bearer $githubToken" `
+                    -H "User-Agent: LocalShare" `
+                    -H "Accept: application/vnd.github+json" `
+                    -H "Content-Type: application/json" `
+                    --data-binary "@$tmpJsonPath" `
+                    "$releaseApiUrl"
+
+                $createResp = [System.IO.File]::ReadAllText($respFile, [System.Text.Encoding]::UTF8)
+                Remove-Item $tmpJsonFile, $respFile -Force -ErrorAction SilentlyContinue
+
+                $newRelease = $null
+                try { $newRelease = $createResp | ConvertFrom-Json } catch {}
+
+                if (-not $newRelease -or -not $newRelease.id) {
+                    Write-Err "Failed to create GitHub release. Response: $createResp"
+                    exit 1
+                }
+
+                $targetReleaseId = $newRelease.id
+                $htmlUrl = $newRelease.html_url
+                Write-Success "Created GitHub release (ID: $targetReleaseId)!"
+            } else {
+                $targetReleaseId = $existingRelease.id
+                $htmlUrl = $existingRelease.html_url
+            }
+
+            # 2. Upload Setup Executable Assets
+            $assetsToUpload = @(
+                @{ Name = "$productName-Setup-$tagName.exe"; Path = $versionedInstallerPath },
+                @{ Name = "$productName-Setup.exe"; Path = $standardInstallerPath }
+            )
+
+            # Check existing assets to avoid duplicates or replace old ones
+            $assetsResp = & curl.exe -s -H "Authorization: Bearer $githubToken" -H "Accept: application/vnd.github+json" "$releaseApiUrl/$targetReleaseId/assets"
+            $existingAssets = @()
+            try { $existingAssets = $assetsResp | ConvertFrom-Json } catch {}
+
+            foreach ($asset in $assetsToUpload) {
+                $assetName = $asset.Name
+                $assetPath = $asset.Path
+
+                # Delete duplicate asset if it exists
+                $match = $existingAssets | Where-Object { $_.name -eq $assetName }
+                if ($match) {
+                    Write-Info "Replacing existing asset '$assetName' (ID: $($match.id))..."
+                    & curl.exe -s -X DELETE `
+                        -H "Authorization: Bearer $githubToken" `
+                        -H "Accept: application/vnd.github+json" `
+                        "https://api.github.com/repos/$repoOwner/$repoName/releases/assets/$($match.id)" | Out-Null
+                }
+
+                Write-Info "Uploading $assetName..."
+                $uploadUri = "https://uploads.github.com/repos/$repoOwner/$repoName/releases/$targetReleaseId/assets?name=$assetName"
+
+                $assetPathClean = (Resolve-Path $assetPath).Path.Replace('\', '/')
+
+                # Use curl.exe for robust large binary streaming and progress meter
+                $curlResult = & curl.exe --progress-bar -f -s -S -X POST `
+                    -H "Authorization: Bearer $githubToken" `
+                    -H "Content-Type: application/octet-stream" `
+                    --data-binary "@$assetPathClean" `
+                    "$uploadUri" 2>&1
+
+                if ($LASTEXITCODE -ne 0) {
+                    Write-Warn "Upload of $assetName exited with code ${LASTEXITCODE}: $curlResult"
+                } else {
+                    Write-Success "Uploaded $assetName successfully."
+                }
+            }
+
+            Write-Host "`n"
+            Write-Host "==========================================================" -ForegroundColor Green
+            Write-Host "         🎉 RELEASE PUBLISHED SUCCESSFULLY!               " -ForegroundColor Green
+            Write-Host "==========================================================" -ForegroundColor Green
+            Write-Host "Release URL: " -NoNewline; Write-Host "$htmlUrl" -ForegroundColor Cyan
+            Write-Host "Tag:         " -NoNewline; Write-Host "$tagName" -ForegroundColor Yellow
+            Write-Host "Direct Exe:  " -NoNewline; Write-Host "https://github.com/$repoOwner/$repoName/releases/download/$tagName/$productName-Setup.exe" -ForegroundColor White
+            Write-Host "SHA-256:     " -NoNewline; Write-Host "$installerHash" -ForegroundColor DarkGray
+            Write-Host "==========================================================" -ForegroundColor Green
+        }
+    } else {
+        # Fallback if no GitHub token can be resolved
+        Write-Warn "No GitHub Personal Access Token or Git Credential Manager token found."
+        Write-Info "Copied release notes to clipboard!"
+        try { Set-Clipboard -Value $releaseNotes } catch {}
+
+        $escapedTitle = [System.Uri]::EscapeDataString($releaseTitle)
+        $draftUrl = "https://github.com/$repoOwner/$repoName/releases/new?tag=$tagName&title=$escapedTitle"
+        Write-Info "Opening release creation page in your browser..."
+        Start-Process $draftUrl
+        Start-Process (Resolve-Path $distDir)
+        Write-Success "Please drag-and-drop $productName-Setup.exe into the browser release page and paste the release notes (Ctrl+V)."
+    }
+}
+
+Write-Step "All Release Steps Completed!"

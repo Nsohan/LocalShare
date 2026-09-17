@@ -8,7 +8,9 @@
   "scripts": {
     "start": "electron .",
     "dev": "electronmon .",
-    "package": "set ELECTRON_BUILDER_7ZIP_SYMLINKS=0 && electron-builder"
+    "package": "set ELECTRON_BUILDER_7ZIP_SYMLINKS=0 && electron-builder",
+    "release": "powershell -ExecutionPolicy Bypass -File ./release.ps1",
+    "release:dry": "powershell -ExecutionPolicy Bypass -File ./release.ps1 -DryRun"
   },
   "electronmon": {
     "patterns": [
