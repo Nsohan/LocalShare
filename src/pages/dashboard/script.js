@@ -28,6 +28,7 @@ const { switchView, initNavigation, setNavigationCallbacks } = require("./js/nav
 const { renderFilesView, initFiles } = require("./js/files");
 const { generateQRCode, initConnect } = require("./js/connect");
 const { renderDevicesList, initDevices } = require("./js/devices");
+const { scanAdbDevices, checkScrcpyStatus, initMirror } = require("./js/mirror");
 const { initModals, setOnDeviceAdded } = require("./js/modals");
 const { updateApiTokens, initApi } = require("./js/api");
 const { populateSettings, initSettings } = require("./js/settings");
@@ -46,6 +47,10 @@ function renderDashboard() {
 setNavigationCallbacks({
   onConnectView: generateQRCode,
   onDevicesView: () => renderDevicesList(currentState.devices || []),
+  onMirrorView: () => {
+    checkScrcpyStatus();
+    scanAdbDevices();
+  },
 });
 
 setOnDeviceAdded(() => {
@@ -83,6 +88,7 @@ initNavigation();
 initFiles();
 initConnect();
 initDevices();
+initMirror();
 initModals();
 initApi();
 initSettings();

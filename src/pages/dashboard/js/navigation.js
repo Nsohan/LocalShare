@@ -4,6 +4,7 @@ const VIEW_TITLES = {
   files: "Files & Sharing",
   connect: "Connect & QR Code",
   devices: "Your Devices",
+  mirror: "Screen Mirror & Remote Control",
   api: "API Explorer",
   settings: "Application Settings",
   about: "About LocalShare",
@@ -11,10 +12,12 @@ const VIEW_TITLES = {
 
 let qrCodeCallback = null;
 let devicesRenderCallback = null;
+let mirrorRenderCallback = null;
 
-function setNavigationCallbacks({ onConnectView, onDevicesView }) {
+function setNavigationCallbacks({ onConnectView, onDevicesView, onMirrorView }) {
   if (onConnectView) qrCodeCallback = onConnectView;
   if (onDevicesView) devicesRenderCallback = onDevicesView;
+  if (onMirrorView) mirrorRenderCallback = onMirrorView;
 }
 
 function switchView(viewName) {
@@ -50,6 +53,8 @@ function switchView(viewName) {
     qrCodeCallback();
   } else if (viewName === "devices" && devicesRenderCallback) {
     devicesRenderCallback(currentState.devices || []);
+  } else if (viewName === "mirror" && mirrorRenderCallback) {
+    mirrorRenderCallback();
   }
 }
 

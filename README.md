@@ -16,6 +16,7 @@ LocalShare turns your computer into a lightweight, high-speed local sharing hub.
   - **Files & Sharing**: Interactive drag-and-drop zone, file category badges, and quick links.
   - **Connect & QR**: Native high-resolution QR code generator for instant phone camera scan-to-connect.
   - **📱 Your Devices**: Add and manage paired local mobile devices with 6-digit PIN verification, real-time 1-second HTTP polling, and latency ping monitoring.
+  - **🪞 Screen Mirror & Control (scrcpy)**: Ultra-low latency Android screen mirroring, mouse/keyboard input, audio streaming, Wi-Fi TCP/IP mode switching, recording to MP4, and customizable resolution/bitrate presets.
   - **API Explorer**: Built-in REST API reference with copyable `curl` examples and pairing specifications.
   - **Settings**: Windows autostart toggle, notifications mute, custom port selector, and theme switcher.
   - **About**: Diagnostic runtime versions (Electron, Node.js) and operating system info.

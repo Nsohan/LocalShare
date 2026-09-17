@@ -1,0 +1,737 @@
+/* =======================================================
+   VIEW: SCREEN MIRROR & REMOTE CONTROL (scrcpy) STYLES
+   ======================================================= */
+
+.mirror-header-row {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 16px;
+}
+
+.mirror-title-with-pill {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  margin-bottom: 2px;
+}
+
+.mirror-header-meta .section-title {
+  font-family: var(--font-brand);
+  font-size: 1.15rem;
+  font-weight: 700;
+  color: var(--text-main);
+  margin-bottom: 0;
+}
+
+.mirror-engine-pill {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  font-size: 0.72rem;
+  font-weight: 600;
+  padding: 2px 10px;
+  border-radius: 999px;
+  background: rgba(16, 185, 129, 0.12);
+  color: #34d399;
+  border: 1px solid rgba(16, 185, 129, 0.25);
+}
+
+.mirror-engine-pill.warning {
+  background: rgba(245, 158, 11, 0.12);
+  color: #fbbf24;
+  border-color: rgba(245, 158, 11, 0.25);
+}
+
+.mirror-engine-pill .status-dot {
+  width: 6px;
+  height: 6px;
+  border-radius: 50%;
+  background: currentColor;
+}
+
+.mirror-header-meta .section-subtitle {
+  font-size: 0.8rem;
+  color: var(--text-muted);
+}
+
+.mirror-header-actions {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+/* Compact Warning Alert (Only shown if setup needed) */
+.mirror-warning-banner {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 10px 16px;
+  border-radius: var(--radius-md);
+  background: rgba(245, 158, 11, 0.08);
+  border: 1px solid rgba(245, 158, 11, 0.25);
+  font-size: 0.82rem;
+}
+
+.warning-banner-text {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  color: var(--text-main);
+}
+
+.warning-banner-text span {
+  color: var(--text-muted);
+}
+
+/* Wireless ADB Connect Horizontal Bar (Under Header) */
+.wireless-connect-bar {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 16px;
+  background: var(--surface-item);
+  border: 1px solid var(--border-subtle);
+  border-radius: var(--radius-md);
+  padding: 12px 18px;
+  flex-wrap: wrap;
+}
+
+.wireless-bar-left {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+}
+
+.wireless-bar-icon {
+  width: 32px;
+  height: 32px;
+  border-radius: var(--radius-sm);
+  background: rgba(168, 85, 247, 0.15);
+  color: #c084fc;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  flex-shrink: 0;
+}
+
+.wireless-bar-title-wrap {
+  display: flex;
+  flex-direction: column;
+  gap: 1px;
+}
+
+.wireless-bar-title {
+  font-size: 0.88rem;
+  font-weight: 600;
+  color: var(--text-main);
+}
+
+.wireless-bar-sub {
+  font-size: 0.72rem;
+  color: var(--text-muted);
+}
+
+.wireless-bar-form {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  flex: 1;
+  justify-content: flex-end;
+  max-width: 540px;
+}
+
+.wireless-input-wrap {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.wireless-input-label {
+  font-size: 0.75rem;
+  font-weight: 600;
+  color: var(--text-muted);
+  white-space: nowrap;
+}
+
+.wireless-ip-field,
+.wireless-port-field {
+  background: var(--surface-input);
+  border: 1px solid var(--border-subtle);
+  border-radius: var(--radius-sm);
+  color: var(--text-main);
+  font-family: var(--font-body);
+  font-size: 0.82rem;
+  height: 30px;
+  box-sizing: border-box;
+  outline: none;
+  transition: all 0.2s cubic-bezier(0.4, 0, 0.2, 1);
+}
+
+.wireless-ip-field {
+  width: 170px;
+  padding: 6px 12px;
+}
+
+.wireless-port-field {
+  width: 75px;
+  padding: 6px 8px;
+  text-align: center;
+}
+
+.wireless-ip-field:focus,
+.wireless-port-field:focus {
+  border-color: var(--primary);
+  background: rgba(255, 255, 255, 0.08);
+  box-shadow: 0 0 0 2px var(--primary-glow);
+}
+
+.wireless-submit-btn {
+  white-space: nowrap;
+  padding: 6px 14px;
+  height: 30px;
+}
+
+/* Mirror Quality & Presets Ultra-Compact Card */
+.mirror-presets-top-card.compact {
+  padding: 10px 16px;
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
+.mirror-presets-compact-top {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  flex-wrap: wrap;
+}
+
+.mirror-presets-compact-title {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  font-size: 0.82rem;
+  font-weight: 600;
+  color: var(--text-main);
+}
+
+.mirror-presets-compact-title svg {
+  color: var(--primary);
+}
+
+.mirror-compact-selects-group {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  flex-wrap: wrap;
+}
+
+.mirror-compact-select-item {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+}
+
+.mirror-compact-select-item label {
+  font-size: 0.74rem;
+  font-weight: 600;
+  color: var(--text-muted);
+  white-space: nowrap;
+}
+
+.compact-select {
+  background: var(--surface-input);
+  border: 1px solid var(--border-subtle);
+  color: var(--text-main);
+  padding: 4px 8px;
+  font-size: 0.78rem;
+  height: 28px;
+  min-width: 80px;
+  border-radius: var(--radius-sm);
+  outline: none;
+  transition: all 0.2s cubic-bezier(0.4, 0, 0.2, 1);
+}
+
+.compact-select:focus {
+  border-color: var(--primary);
+  background: rgba(255, 255, 255, 0.08);
+  box-shadow: 0 0 0 2px var(--primary-glow);
+}
+
+.mirror-compact-toggles-row {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  flex-wrap: wrap;
+  padding-top: 6px;
+  border-top: 1px solid var(--border-subtle);
+}
+
+.custom-toggle-inline.compact {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  cursor: pointer;
+  padding: 2px 6px;
+  border-radius: var(--radius-sm);
+  transition: background var(--transition-fast);
+}
+
+.custom-toggle-inline.compact:hover {
+  background: var(--surface-item-hover);
+}
+
+.custom-toggle-inline.compact .toggle-inline-label {
+  font-size: 0.74rem;
+  font-weight: 500;
+  color: var(--text-main);
+  white-space: nowrap;
+}
+
+.full-width {
+  width: 100%;
+}
+
+/* Master Toolbox Grid */
+.toolbox-tools-section {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+}
+
+.toolbox-section-title {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  font-family: var(--font-brand);
+  font-size: 0.95rem;
+  font-weight: 600;
+  color: var(--text-main);
+  margin-bottom: 0;
+}
+
+.toolbox-section-title svg {
+  color: var(--primary);
+}
+
+.toolbox-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(210px, 1fr));
+  gap: 14px;
+}
+
+.tool-card {
+  background: var(--surface-item);
+  border: 1px solid var(--border-subtle);
+  border-radius: var(--radius-md);
+  padding: 16px;
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+  transition: all var(--transition-fast);
+}
+
+.tool-card:hover {
+  border-color: var(--border-hover);
+  background: var(--surface-item-hover);
+  transform: translateY(-2px);
+  box-shadow: 0 6px 18px rgba(0, 0, 0, 0.15);
+}
+
+.tool-icon-wrapper {
+  width: 40px;
+  height: 40px;
+  border-radius: var(--radius-md);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+
+.tool-icon-wrapper.emerald {
+  background: rgba(16, 185, 129, 0.15);
+  color: #34d399;
+}
+.tool-icon-wrapper.purple {
+  background: rgba(168, 85, 247, 0.15);
+  color: #c084fc;
+}
+.tool-icon-wrapper.blue {
+  background: rgba(59, 130, 246, 0.15);
+  color: #60a5fa;
+}
+.tool-icon-wrapper.amber {
+  background: rgba(245, 158, 11, 0.15);
+  color: #fbbf24;
+}
+.tool-icon-wrapper.red {
+  background: rgba(239, 68, 68, 0.15);
+  color: #f87171;
+}
+.tool-icon-wrapper.teal {
+  background: rgba(20, 184, 166, 0.15);
+  color: #2dd4bf;
+}
+
+.tool-info {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  flex: 1;
+}
+
+.tool-header-badge-row {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 6px;
+}
+
+.tool-title {
+  font-size: 0.88rem;
+  font-weight: 600;
+  color: var(--text-main);
+}
+
+.tool-badge {
+  font-size: 0.65rem;
+  font-weight: 700;
+  padding: 1px 6px;
+  border-radius: 4px;
+  text-transform: uppercase;
+}
+
+.tool-badge.primary {
+  background: var(--primary-subtle);
+  color: var(--primary);
+}
+.tool-badge.purple {
+  background: rgba(168, 85, 247, 0.15);
+  color: #c084fc;
+}
+.tool-badge.blue {
+  background: rgba(59, 130, 246, 0.15);
+  color: #60a5fa;
+}
+.tool-badge.amber {
+  background: rgba(245, 158, 11, 0.15);
+  color: #fbbf24;
+}
+.tool-badge.red {
+  background: rgba(239, 68, 68, 0.15);
+  color: #f87171;
+}
+.tool-badge.teal {
+  background: rgba(20, 184, 166, 0.15);
+  color: #2dd4bf;
+}
+
+.tool-desc {
+  font-size: 0.74rem;
+  color: var(--text-muted);
+  line-height: 1.35;
+  margin: 0;
+}
+
+/* Main Grid Layout */
+.mirror-layout-grid {
+  display: grid;
+  grid-template-columns: 1.3fr 1fr;
+  gap: 20px;
+  align-items: start;
+}
+
+@media (max-width: 1024px) {
+  .mirror-layout-grid {
+    grid-template-columns: 1fr;
+  }
+}
+
+.mirror-sidebar-column {
+  display: flex;
+  flex-direction: column;
+  gap: 20px;
+}
+
+/* ADB Devices Card */
+.mirror-devices-card {
+  min-height: 380px;
+  display: flex;
+  flex-direction: column;
+}
+
+.devices-online-badge {
+  font-size: 0.75rem;
+  font-weight: 600;
+  color: var(--primary);
+  background: var(--primary-subtle);
+  padding: 3px 10px;
+  border-radius: 999px;
+}
+
+.adb-devices-list {
+  display: flex;
+  flex-direction: column;
+  gap: 14px;
+  margin-top: 8px;
+}
+
+.adb-device-card {
+  background: var(--surface-item);
+  border: 1px solid var(--border-subtle);
+  border-radius: var(--radius-md);
+  padding: 16px;
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+  transition: all var(--transition-fast);
+}
+
+.adb-device-card:hover {
+  border-color: var(--border-hover);
+  background: var(--surface-item-hover);
+}
+
+.adb-device-card.mirroring {
+  border-color: rgba(16, 185, 129, 0.4);
+  background: rgba(16, 185, 129, 0.04);
+}
+
+.adb-device-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+}
+
+.adb-device-info {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+}
+
+.adb-device-avatar {
+  width: 40px;
+  height: 40px;
+  border-radius: var(--radius-md);
+  background: var(--primary-subtle);
+  color: var(--primary);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  flex-shrink: 0;
+}
+
+.adb-device-names {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+}
+
+.adb-device-title {
+  font-size: 0.95rem;
+  font-weight: 600;
+  color: var(--text-main);
+}
+
+.adb-device-serial {
+  font-size: 0.75rem;
+  font-family: monospace;
+  color: var(--text-muted);
+}
+
+.adb-badge-group {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+}
+
+.adb-conn-badge {
+  font-size: 0.72rem;
+  font-weight: 600;
+  padding: 2px 8px;
+  border-radius: 4px;
+}
+
+.adb-conn-badge.usb {
+  background: rgba(59, 130, 246, 0.15);
+  color: #60a5fa;
+}
+
+.adb-conn-badge.wifi {
+  background: rgba(168, 85, 247, 0.15);
+  color: #c084fc;
+}
+
+.adb-state-pill {
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+  font-size: 0.72rem;
+  font-weight: 600;
+  padding: 2px 8px;
+  border-radius: 999px;
+}
+
+.adb-state-pill.ready {
+  background: rgba(16, 185, 129, 0.15);
+  color: #34d399;
+}
+
+.adb-state-pill.unauthorized {
+  background: rgba(245, 158, 11, 0.15);
+  color: #fbbf24;
+}
+
+.adb-state-pill.offline {
+  background: rgba(239, 68, 68, 0.15);
+  color: #f87171;
+}
+
+/* Device Battery Status Row */
+.adb-battery-row {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  background: rgba(0, 0, 0, 0.2);
+  border-radius: var(--radius-sm);
+  padding: 6px 12px;
+  font-size: 0.75rem;
+  color: var(--text-muted);
+}
+
+.adb-battery-item {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+}
+
+.adb-battery-val {
+  font-weight: 600;
+  color: var(--text-main);
+}
+
+.adb-device-actions {
+  display: flex;
+  align-items: center;
+  justify-content: flex-end;
+  gap: 8px;
+  flex-wrap: wrap;
+  padding-top: 10px;
+  border-top: 1px solid var(--border-subtle);
+}
+
+/* Empty State Guide Box */
+.empty-guide-box {
+  background: var(--surface-item);
+  border: 1px dashed var(--border-subtle);
+  border-radius: var(--radius-md);
+  padding: 14px 18px;
+  margin: 16px 0;
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  text-align: left;
+  max-width: 380px;
+  width: 100%;
+}
+
+.guide-step {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  font-size: 0.8rem;
+  color: var(--text-muted);
+}
+
+.guide-step span {
+  width: 20px;
+  height: 20px;
+  border-radius: 50%;
+  background: var(--primary-subtle);
+  color: var(--primary);
+  font-size: 0.72rem;
+  font-weight: 700;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  flex-shrink: 0;
+}
+
+.guide-step strong {
+  color: var(--text-main);
+}
+
+/* Wireless Connect Form */
+.wireless-help-text {
+  font-size: 0.8rem;
+  color: var(--text-muted);
+  margin-bottom: 14px;
+}
+
+.wireless-form {
+  display: flex;
+  flex-direction: column;
+  gap: 14px;
+}
+
+.form-row-dual {
+  display: flex;
+  gap: 10px;
+}
+
+.flex-3 {
+  flex: 3;
+}
+
+.flex-1 {
+  flex: 1;
+}
+
+/* Mirror Options / Settings Card */
+.mirror-settings-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(130px, 1fr));
+  gap: 12px;
+  margin-bottom: 16px;
+}
+
+.mirror-toggles-list {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+  border-top: 1px solid var(--border-subtle);
+  padding-top: 14px;
+}
+
+.custom-toggle-row {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 8px 10px;
+  border-radius: var(--radius-sm);
+  cursor: pointer;
+  transition: background var(--transition-fast);
+}
+
+.custom-toggle-row:hover {
+  background: var(--surface-item);
+}
+
+.toggle-info {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+}
+
+.toggle-title {
+  font-size: 0.83rem;
+  font-weight: 500;
+  color: var(--text-main);
+}
+
+.toggle-desc {
+  font-size: 0.72rem;
+  color: var(--text-muted);
+}

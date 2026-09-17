@@ -100,11 +100,19 @@ function renderDevicesList(devices = []) {
             </svg>
             <span>Test Ping</span>
           </button>
+          <button class="btn btn-sm btn-primary" data-action="mirror" data-url="${device.url}" data-name="${device.name}" title="Mirror phone screen with scrcpy">
+            <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+              <rect x="2" y="3" width="20" height="14" rx="2" ry="2"></rect>
+              <line x1="8" y1="21" x2="16" y2="21"></line>
+              <line x1="12" y1="17" x2="12" y2="21"></line>
+            </svg>
+            <span>Mirror</span>
+          </button>
           <button class="btn btn-sm btn-secondary" data-action="browse" data-url="${device.url}" title="Open device URL in default browser">
             <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
               <circle cx="12" cy="12" r="10"></circle>
               <line x1="2" y1="12" x2="22" y2="12"></line>
-              <path d="M12 2a15.3 15.3 0 0 1 4 10 15.3 15.3 0 0 1-4 10 15.3 15.3 0 0 1 4-10z"></path>
+              <path d="M12 2a15.3 15.3 0 0 1 4 10 15.3 15.3 0 0 1-4 10 15.3 15.3 0 0 1-4-10 15.3 15.3 0 0 1 4-10z"></path>
             </svg>
             <span>Open</span>
           </button>
@@ -120,6 +128,26 @@ function renderDevicesList(devices = []) {
     `;
 
     // Action listeners
+    const mirrorBtn = card.querySelector('[data-action="mirror"]');
+    if (mirrorBtn) {
+      mirrorBtn.addEventListener("click", () => {
+        try {
+          const rawUrl = device.url || "";
+          const hostMatch = rawUrl.match(/https?:\/\/([^/:]+)/i);
+          const hostIp = hostMatch ? hostMatch[1] : "";
+          
+          const { switchView } = require("./navigation");
+          switchView("mirror");
+
+          if (hostIp) {
+            const ipInput = document.getElementById("wirelessIpInput");
+            if (ipInput) ipInput.value = hostIp;
+          }
+        } catch (e) {
+          console.error("Error switching to mirror view:", e);
+        }
+      });
+    }
     const pingBtn = card.querySelector('[data-action="ping"]');
     pingBtn.addEventListener("click", async () => {
       pingBtn.disabled = true;

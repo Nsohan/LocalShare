@@ -4,7 +4,13 @@
  */
 const fs = require('fs');
 const path = require('path');
-const { app } = require('electron');
+let electronApp = null;
+try {
+  const electron = require('electron');
+  electronApp = electron?.app;
+} catch (e) {
+  // Ignore in standard Node runtime
+}
 const os = require('os');
 
 // Define log levels
@@ -18,7 +24,7 @@ const LOG_LEVELS = {
 class Logger {
   constructor() {
     // Set up log directory - use app data directory for persistent logs
-    this.logDir = path.join(app?.getPath('userData') || os.tmpdir(), 'logs');
+    this.logDir = path.join(electronApp?.getPath('userData') || os.tmpdir(), 'logs');
     this.logFile = path.join(this.logDir, `localshare-${new Date().toISOString().split('T')[0]}.log`);
     this.level = LOG_LEVELS.DEBUG; // Default to most verbose logging
 
@@ -30,7 +36,7 @@ class Logger {
 
       // Write header to log file
       this._appendToLogFile(`\n\n=== LocalShare Log Started at ${new Date().toISOString()} ===\n`);
-      this._appendToLogFile(`App version: ${app?.getVersion() || 'unknown'}\n`);
+      this._appendToLogFile(`App version: ${electronApp?.getVersion() || 'unknown'}\n`);
       this._appendToLogFile(`OS: ${os.platform()} ${os.release()}\n`);
       this._appendToLogFile(`Node version: ${process.version}\n`);
       this._appendToLogFile(`Electron: ${process.versions.electron || 'unknown'}\n`);

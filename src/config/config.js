@@ -36,6 +36,17 @@ const DEFAULT_CONFIG = {
   receivedFiles: [],
   devices: [],
   theme: "light",
+  mirror: {
+    maxSize: 1080,
+    bitRate: "8M",
+    maxFps: 60,
+    turnScreenOff: false,
+    stayAwake: true,
+    alwaysOnTop: false,
+    noAudio: false,
+    record: false,
+    autoReconnect: true,
+  },
 };
 
 /**

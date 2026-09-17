@@ -24,6 +24,7 @@ const {
   showDashboardWindow,
   getDashboardWindow,
 } = require("./windows/dashboard");
+const scrcpyManager = require("./scrcpy");
 
 // Make sure app is ready before requiring config
 let configReady = false;
@@ -578,129 +579,140 @@ if (!gotTheLock) {
   // ==========================
 
   // Poll device server to check if 6-digit key was entered and accepted
-  ipcMain.handle("devices:poll-check", async (event, { deviceUrl, pairingKey }) => {
-    if (!deviceUrl) {
-      return { connected: false, error: "Empty URL", message: "Enter device URL" };
-    }
-
-    let urlStr = deviceUrl.trim();
-    if (!/^https?:\/\//i.test(urlStr)) {
-      urlStr = `http://${urlStr}`;
-    }
-
-    try {
-      const parsedUrl = new URL(urlStr);
-      // Append pairing parameters if not already present
-      if (!parsedUrl.searchParams.has("key")) {
-        parsedUrl.searchParams.set("key", pairingKey);
+  ipcMain.handle(
+    "devices:poll-check",
+    async (event, { deviceUrl, pairingKey }) => {
+      if (!deviceUrl) {
+        return {
+          connected: false,
+          error: "Empty URL",
+          message: "Enter device URL",
+        };
       }
-      parsedUrl.searchParams.set("pc", os.hostname());
 
-      logger.info(`devices:poll-check fetching: ${parsedUrl.toString()}`);
+      let urlStr = deviceUrl.trim();
+      if (!/^https?:\/\//i.test(urlStr)) {
+        urlStr = `http://${urlStr}`;
+      }
 
-      const controller = new AbortController();
-      // Allow up to 25s for mobile user to enter PIN in popup dialog
-      const timeoutId = setTimeout(() => controller.abort(), 25000);
+      try {
+        const parsedUrl = new URL(urlStr);
+        // Append pairing parameters if not already present
+        if (!parsedUrl.searchParams.has("key")) {
+          parsedUrl.searchParams.set("key", pairingKey);
+        }
+        parsedUrl.searchParams.set("pc", os.hostname());
 
-      const res = await fetch(parsedUrl.toString(), {
-        method: "GET",
-        signal: controller.signal,
-        headers: {
-          Accept: "application/json, text/plain, */*",
-          "X-Pairing-Key": pairingKey,
-          "X-Device-Type": "desktop",
-        },
-      });
+        logger.info(`devices:poll-check fetching: ${parsedUrl.toString()}`);
 
-      clearTimeout(timeoutId);
-      logger.info(`devices:poll-check response status: ${res.status}`);
+        const controller = new AbortController();
+        // Allow up to 25s for mobile user to enter PIN in popup dialog
+        const timeoutId = setTimeout(() => controller.abort(), 25000);
 
-      const contentType = res.headers.get("content-type") || "";
-      let data = null;
-      let text = "";
+        const res = await fetch(parsedUrl.toString(), {
+          method: "GET",
+          signal: controller.signal,
+          headers: {
+            Accept: "application/json, text/plain, */*",
+            "X-Pairing-Key": pairingKey,
+            "X-Device-Type": "desktop",
+          },
+        });
 
-      if (contentType.includes("application/json")) {
-        try {
-          data = await res.json();
-          logger.info(`devices:poll-check JSON body:`, data);
-        } catch (e) {
+        clearTimeout(timeoutId);
+        logger.info(`devices:poll-check response status: ${res.status}`);
+
+        const contentType = res.headers.get("content-type") || "";
+        let data = null;
+        let text = "";
+
+        if (contentType.includes("application/json")) {
+          try {
+            data = await res.json();
+            logger.info(`devices:poll-check JSON body:`, data);
+          } catch (e) {
+            text = await res.text();
+          }
+        } else {
           text = await res.text();
         }
-      } else {
-        text = await res.text();
-      }
 
-      // 2xx response
-      if (res.status >= 200 && res.status < 300) {
-        if (data) {
-          // If JSON explicitly marks pending or failure
+        // 2xx response
+        if (res.status >= 200 && res.status < 300) {
+          if (data) {
+            // If JSON explicitly marks pending or failure
+            if (
+              data.success === false ||
+              data.status === "error" ||
+              data.status === "pending" ||
+              data.paired === false ||
+              data.waiting === true
+            ) {
+              return {
+                connected: false,
+                status: res.status,
+                message: data.message || "Waiting for key entry on mobile...",
+              };
+            }
+
+            return {
+              connected: true,
+              status: res.status,
+              deviceName:
+                data.name ||
+                data.deviceName ||
+                data.hostname ||
+                data.model ||
+                data.device ||
+                null,
+              data,
+            };
+          }
+
+          const lowerText = text.toLowerCase().trim();
           if (
-            data.success === false ||
-            data.status === "error" ||
-            data.status === "pending" ||
-            data.paired === false ||
-            data.waiting === true
+            lowerText.includes("wait") ||
+            lowerText.includes("pending") ||
+            lowerText.includes("unauthorized") ||
+            lowerText.includes("invalid") ||
+            lowerText.includes("not ready")
           ) {
             return {
               connected: false,
               status: res.status,
-              message: data.message || "Waiting for key entry on mobile...",
+              message: "Waiting for key entry on mobile...",
             };
           }
 
           return {
             connected: true,
             status: res.status,
-            deviceName:
-              data.name ||
-              data.deviceName ||
-              data.hostname ||
-              data.model ||
-              data.device ||
-              null,
-            data,
-          };
-        }
-
-        const lowerText = text.toLowerCase().trim();
-        if (
-          lowerText.includes("wait") ||
-          lowerText.includes("pending") ||
-          lowerText.includes("unauthorized") ||
-          lowerText.includes("invalid") ||
-          lowerText.includes("not ready")
-        ) {
-          return {
-            connected: false,
-            status: res.status,
-            message: "Waiting for key entry on mobile...",
+            text,
           };
         }
 
         return {
-          connected: true,
+          connected: false,
           status: res.status,
-          text,
+          message: `HTTP ${res.status}: Waiting for authorization...`,
+        };
+      } catch (err) {
+        logger.error("devices:poll-check error:", err);
+        if (err.name === "AbortError" || err.message?.includes("aborted")) {
+          return {
+            connected: false,
+            error: "timeout",
+            message: "Waiting for PIN entry on phone...",
+          };
+        }
+        return {
+          connected: false,
+          error: err.code || err.message,
+          message: `${err.message || "Connection failed"}`,
         };
       }
-
-      return {
-        connected: false,
-        status: res.status,
-        message: `HTTP ${res.status}: Waiting for authorization...`,
-      };
-    } catch (err) {
-      logger.error("devices:poll-check error:", err);
-      if (err.name === "AbortError" || err.message?.includes("aborted")) {
-        return { connected: false, error: "timeout", message: "Waiting for PIN entry on phone..." };
-      }
-      return {
-        connected: false,
-        error: err.code || err.message,
-        message: `${err.message || "Connection failed"}`,
-      };
-    }
-  });
+    },
+  );
 
   // Save new paired device
   ipcMain.handle("devices:save", async (event, newDevice) => {
@@ -761,6 +773,70 @@ if (!gotTheLock) {
         latencyMs: Date.now() - start,
       };
     }
+  });
+
+  // ================= SCRCPY SCREEN MIRROR IPC HANDLERS =================
+
+  // Check binary status (scrcpy and adb)
+  ipcMain.handle("scrcpy:get-status", async () => {
+    return await scrcpyManager.checkBinaries();
+  });
+
+  // List connected ADB devices
+  ipcMain.handle("scrcpy:list-devices", async () => {
+    return await scrcpyManager.listAdbDevices();
+  });
+
+  // Enable wireless TCP/IP mode on USB device
+  ipcMain.handle("scrcpy:enable-tcpip", async (event, { serial, port }) => {
+    return await scrcpyManager.enableTcpIp(serial, port);
+  });
+
+  // Connect to wireless ADB device by IP
+  ipcMain.handle("scrcpy:connect-wireless", async (event, { ip, port }) => {
+    return await scrcpyManager.connectWireless(ip, port);
+  });
+
+  // Disconnect from wireless ADB device
+  ipcMain.handle("scrcpy:disconnect-wireless", async (event, target) => {
+    return await scrcpyManager.disconnectWireless(target);
+  });
+
+  // Start scrcpy mirror session
+  ipcMain.handle("scrcpy:start-session", async (event, options) => {
+    return scrcpyManager.startMirror(
+      options,
+      (sessionId, exitCode, errorMsg) => {
+        const win = getDashboardWindow();
+        if (win && !win.isDestroyed()) {
+          win.webContents.send("scrcpy:session-ended", {
+            sessionId,
+            exitCode,
+            error: errorMsg,
+          });
+        }
+      },
+    );
+  });
+
+  // Stop running scrcpy mirror session
+  ipcMain.handle("scrcpy:stop-session", async (event, sessionId) => {
+    return scrcpyManager.stopMirror(sessionId);
+  });
+
+  // Take screenshot and copy to clipboard
+  ipcMain.handle("scrcpy:take-screenshot", async (event, serial) => {
+    return await scrcpyManager.takeScreenshot(serial);
+  });
+
+  // Get device battery status
+  ipcMain.handle("scrcpy:get-battery", async (event, serial) => {
+    return await scrcpyManager.getDeviceBattery(serial);
+  });
+
+  // Get active sessions
+  ipcMain.handle("scrcpy:get-active-sessions", async () => {
+    return scrcpyManager.getActiveSessions();
   });
 
   // Open main dashboard window
@@ -925,6 +1001,7 @@ if (!gotTheLock) {
   app.on("before-quit", () => {
     app.isQuiting = true;
     logger.info("App quitting...");
+    scrcpyManager.stopAllSessions();
     if (serverProcess) {
       logger.info("Killing server process on app quit...");
       try {
