@@ -6,6 +6,8 @@ const path = require("path");
 const fs = require("fs");
 const logger = require("../../config/logger");
 
+const { getAppIconPath, getAppNativeImage } = require("../utils");
+
 let dashboardWindow = null;
 
 /**
@@ -34,11 +36,8 @@ function showDashboardWindow() {
       return dashboardWindow;
     }
 
-    // Resolve icon path safely
-    let iconPath = path.join(__dirname, "../../../build/icon.ico");
-    if (!fs.existsSync(iconPath)) {
-      iconPath = path.join(__dirname, "../../../icon.png");
-    }
+    // Resolve icon safely
+    const appIcon = getAppNativeImage() || getAppIconPath();
 
     // Create new dashboard window
     dashboardWindow = new BrowserWindow({
@@ -49,7 +48,7 @@ function showDashboardWindow() {
       show: false,
       autoHideMenuBar: true,
       title: "LocalShare Dashboard",
-      icon: iconPath,
+      icon: appIcon,
       webPreferences: {
         nodeIntegration: true,
         contextIsolation: false,

@@ -17,8 +17,19 @@ const cp = require("child_process");
 const logger = require("../config/logger");
 
 // Import local modules
-const { createTray, updateTrayMenu } = require("./tray");
-const { filterValidFiles, getLocalIP } = require("./utils");
+const {
+  createTray,
+  updateTrayMenu,
+  pollAdbDevices,
+  updateTrayAdbDevices,
+} = require("./tray");
+const {
+  filterValidFiles,
+  getLocalIP,
+  getAppIconPath,
+  getAppNativeImage,
+  getAppIcon,
+} = require("./utils");
 const { getConfig, setConfig, updateConfig } = require("../config/config");
 const {
   showDashboardWindow,
@@ -40,15 +51,6 @@ const gotTheLock = app.requestSingleInstanceLock();
 let serverProcess = null;
 let sharedFiles = [];
 let tray = null;
-
-/**
- * Get safe application icon path
- */
-function getAppIcon() {
-  const icoPath = path.join(__dirname, "../../build/icon.ico");
-  if (fs.existsSync(icoPath)) return icoPath;
-  return path.join(__dirname, "../../icon.png");
-}
 
 /**
  * Show notification if user enabled notifications in settings
@@ -784,7 +786,11 @@ if (!gotTheLock) {
 
   // List connected ADB devices
   ipcMain.handle("scrcpy:list-devices", async () => {
-    return await scrcpyManager.listAdbDevices();
+    const devices = await scrcpyManager.listAdbDevices();
+    if (typeof updateTrayAdbDevices === "function") {
+      updateTrayAdbDevices(devices);
+    }
+    return devices;
   });
 
   // Enable wireless TCP/IP mode on USB device
@@ -794,12 +800,20 @@ if (!gotTheLock) {
 
   // Connect to wireless ADB device by IP
   ipcMain.handle("scrcpy:connect-wireless", async (event, { ip, port }) => {
-    return await scrcpyManager.connectWireless(ip, port);
+    const res = await scrcpyManager.connectWireless(ip, port);
+    if (res.success && typeof pollAdbDevices === "function") {
+      pollAdbDevices();
+    }
+    return res;
   });
 
   // Disconnect from wireless ADB device
   ipcMain.handle("scrcpy:disconnect-wireless", async (event, target) => {
-    return await scrcpyManager.disconnectWireless(target);
+    const res = await scrcpyManager.disconnectWireless(target);
+    if (typeof pollAdbDevices === "function") {
+      pollAdbDevices();
+    }
+    return res;
   });
 
   // Start scrcpy mirror session

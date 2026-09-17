@@ -73,7 +73,60 @@ function filterValidFiles(args) {
   return validFiles;
 }
 
+/**
+ * Resolves application icon path safely across dev and packaged modes
+ */
+function getAppIconPath() {
+  const electron = require("electron");
+  const electronApp = electron?.app;
+  const root = path.join(__dirname, "../..");
+  const appPath = electronApp?.getAppPath ? electronApp.getAppPath() : root;
+
+  const candidates = [
+    path.join(root, "build", "icon.ico"),
+    path.join(root, "build", "icon.png"),
+    path.join(root, "icon.png"),
+    path.join(appPath, "build", "icon.ico"),
+    path.join(appPath, "build", "icon.png"),
+    path.join(appPath, "icon.png"),
+    path.join(process.resourcesPath || "", "icon.png"),
+    path.join(process.resourcesPath || "", "build", "icon.ico"),
+  ];
+
+  for (const p of candidates) {
+    if (p && fs.existsSync(p)) return p;
+  }
+  return path.join(root, "icon.png");
+}
+
+/**
+ * Returns nativeImage for window and tray icons
+ */
+function getAppNativeImage() {
+  try {
+    const { nativeImage } = require("electron");
+    const iconPath = getAppIconPath();
+    if (iconPath && fs.existsSync(iconPath)) {
+      const img = nativeImage.createFromPath(iconPath);
+      if (!img.isEmpty()) return img;
+    }
+  } catch (e) {
+    // Ignore
+  }
+  return null;
+}
+
+/**
+ * Returns icon file path string suitable for Notifications and BrowserWindow
+ */
+function getAppIcon() {
+  return getAppIconPath();
+}
+
 module.exports = {
   getLocalIP,
   filterValidFiles,
+  getAppIconPath,
+  getAppNativeImage,
+  getAppIcon,
 };
