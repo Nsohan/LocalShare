@@ -11,6 +11,41 @@ let isScanning = false;
 let currentSelectedDevice = null;
 let lastDetectedDevices = [];
 
+// ADB Command Terminal History & State
+let adbCommandHistory = [];
+try {
+  const saved = localStorage.getItem("localshare_adb_cmd_history");
+  if (saved) adbCommandHistory = JSON.parse(saved);
+} catch (e) {}
+let historyIndex = -1;
+let historyDraft = "";
+let isExecutingAdbCmd = false;
+
+function escapeHtml(str) {
+  if (str === null || str === undefined) return "";
+  return String(str)
+    .replace(/&/g, "&amp;")
+    .replace(/</g, "&lt;")
+    .replace(/>/g, "&gt;")
+    .replace(/"/g, "&quot;")
+    .replace(/'/g, "&#039;");
+}
+
+function saveAdbCommandHistory(cmd) {
+  if (!cmd || !cmd.trim()) return;
+  const trimmed = cmd.trim();
+  // Don't duplicate if identical to last
+  if (adbCommandHistory[adbCommandHistory.length - 1] !== trimmed) {
+    adbCommandHistory.push(trimmed);
+    if (adbCommandHistory.length > 50) adbCommandHistory.shift();
+    try {
+      localStorage.setItem("localshare_adb_cmd_history", JSON.stringify(adbCommandHistory));
+    } catch (e) {}
+  }
+  historyIndex = -1;
+  historyDraft = "";
+}
+
 /**
  * Check scrcpy & ADB binary status and update the compact inline status pill
  */
@@ -95,6 +130,100 @@ function getMirrorOptionsFromUI() {
 }
 
 /**
+ * Update the Target Device selector dropdown in the ADB Terminal
+ */
+function updateAdbDeviceSelector(devices = []) {
+  const select = document.getElementById("adbCmdDeviceSelect");
+  const targetPill = document.getElementById("adbCmdTargetPill");
+  if (!select) return;
+
+  const previousVal = select.value;
+  select.innerHTML = "";
+
+  const autoOpt = document.createElement("option");
+  autoOpt.value = "auto";
+  autoOpt.textContent = devices.length > 0 
+    ? `Auto (${devices[0].model || devices[0].serial})`
+    : "Auto (First Connected)";
+  select.appendChild(autoOpt);
+
+  if (devices.length > 1) {
+    const allOpt = document.createElement("option");
+    allOpt.value = "all";
+    allOpt.textContent = `All Connected Devices (${devices.length})`;
+    select.appendChild(allOpt);
+  }
+
+  for (const d of devices) {
+    const opt = document.createElement("option");
+    opt.value = d.serial;
+    const isConn = d.isWireless ? "Wi-Fi" : "USB";
+    opt.textContent = `${d.model || "Device"} • ${d.serial} [${isConn}]`;
+    select.appendChild(opt);
+  }
+
+  // Restore previous selection if valid
+  const hasPrev = Array.from(select.options).some(o => o.value === previousVal);
+  if (hasPrev) {
+    select.value = previousVal;
+  } else {
+    select.value = "auto";
+  }
+
+  updateAdbTargetPill();
+}
+
+/**
+ * Update the visual prompt tag in the input bar
+ */
+function updateAdbTargetPill() {
+  const select = document.getElementById("adbCmdDeviceSelect");
+  const targetPill = document.getElementById("adbCmdTargetPill");
+  if (!select || !targetPill) return;
+
+  const val = select.value;
+  if (val === "auto") {
+    if (lastDetectedDevices.length > 0) {
+      targetPill.textContent = `-s ${lastDetectedDevices[0].serial}`;
+      targetPill.title = `Targeting: ${lastDetectedDevices[0].model || "Device"} (${lastDetectedDevices[0].serial})`;
+    } else {
+      targetPill.textContent = `-s auto`;
+      targetPill.title = "Auto-targeting first connected ADB device";
+    }
+  } else if (val === "all") {
+    targetPill.textContent = `-s all (${lastDetectedDevices.length})`;
+    targetPill.title = `Executing simultaneously on all ${lastDetectedDevices.length} devices`;
+  } else {
+    targetPill.textContent = `-s ${val}`;
+    targetPill.title = `Targeting device ${val}`;
+  }
+}
+
+/**
+ * Select a specific device in the ADB Command Terminal and scroll to it
+ */
+function selectDeviceInTerminal(serial) {
+  const select = document.getElementById("adbCmdDeviceSelect");
+  const input = document.getElementById("adbCmdInput");
+  const terminalSection = document.getElementById("adbTerminalSection");
+
+  if (select) {
+    select.value = serial;
+    updateAdbTargetPill();
+  }
+
+  if (terminalSection) {
+    terminalSection.scrollIntoView({ behavior: "smooth", block: "nearest" });
+  }
+
+  if (input) {
+    input.focus();
+    input.select();
+  }
+  showToast(`🎯 ADB Terminal targeted to ${serial}`);
+}
+
+/**
  * Render ADB devices list with live Battery Diagnostics and quick actions
  */
 async function renderAdbDevices(devices = []) {
@@ -102,6 +231,9 @@ async function renderAdbDevices(devices = []) {
   const listEl = document.getElementById("adbDevicesList");
   const emptyEl = document.getElementById("adbEmptyState");
   const badgeEl = document.getElementById("adbOnlineBadge");
+
+  // Update terminal device dropdown
+  updateAdbDeviceSelector(lastDetectedDevices);
 
   if (!listEl || !emptyEl) return;
 
@@ -176,6 +308,14 @@ async function renderAdbDevices(devices = []) {
       </div>
 
       <div class="adb-device-actions">
+        <button class="btn btn-sm btn-secondary" data-action="open-terminal" data-serial="${device.serial}" title="Open ADB Command Terminal for this device">
+          <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+            <polyline points="4 17 10 11 4 5"></polyline>
+            <line x1="12" y1="19" x2="20" y2="19"></line>
+          </svg>
+          <span>Terminal</span>
+        </button>
+
         <button class="btn btn-sm btn-secondary" data-action="screenshot" data-serial="${device.serial}" title="Take Screenshot to Downloads and Clipboard">
           <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
             <path d="M23 19a2 2 0 0 1-2 2H3a2 2 0 0 1-2-2V8a2 2 0 0 1 2-2h4l2-3h6l2 3h4a2 2 0 0 1 2 2z"></path>
@@ -232,6 +372,11 @@ async function renderAdbDevices(devices = []) {
     `;
 
     // Attach Action listeners
+    const terminalBtn = card.querySelector('[data-action="open-terminal"]');
+    if (terminalBtn) {
+      terminalBtn.addEventListener("click", () => selectDeviceInTerminal(device.serial));
+    }
+
     const startBtn = card.querySelector('[data-action="start-mirror"]');
     if (startBtn) {
       startBtn.addEventListener("click", () => launchToolboxAction("live", device));
@@ -468,6 +613,222 @@ async function disconnectWirelessAdb(target) {
 }
 
 /**
+ * Run custom ADB command typed by user or clicked from presets
+ */
+async function runAdbCustomCommand(cmdToRun = null) {
+  if (isExecutingAdbCmd) return;
+
+  const input = document.getElementById("adbCmdInput");
+  const runBtn = document.getElementById("adbRunCmdBtn");
+  const deviceSelect = document.getElementById("adbCmdDeviceSelect");
+  const terminalScreen = document.getElementById("adbTerminalOutput");
+
+  const rawCmd = (cmdToRun !== null ? cmdToRun : (input ? input.value : "")).trim();
+
+  if (!rawCmd) {
+    if (input) {
+      input.focus();
+      input.classList.add("input-error-shake");
+      setTimeout(() => input.classList.remove("input-error-shake"), 500);
+    }
+    showToast("⚠️ Please enter an ADB command to run");
+    return;
+  }
+
+  // Save to history & update input
+  saveAdbCommandHistory(rawCmd);
+  if (input) input.value = rawCmd;
+
+  const selectedTarget = deviceSelect ? deviceSelect.value : "auto";
+  let targetSerial = selectedTarget;
+  if (selectedTarget === "auto") {
+    targetSerial = lastDetectedDevices.length > 0 ? lastDetectedDevices[0].serial : undefined;
+  }
+
+  // Target label for prompt display
+  let displayTarget = "";
+  if (selectedTarget === "all") {
+    displayTarget = `-s all (${lastDetectedDevices.length})`;
+  } else if (targetSerial) {
+    displayTarget = `-s ${targetSerial}`;
+  }
+
+  isExecutingAdbCmd = true;
+  if (runBtn) {
+    runBtn.disabled = true;
+    runBtn.classList.add("loading");
+    runBtn.innerHTML = `
+      <span class="btn-spinner"></span>
+      <span>Running...</span>
+    `;
+  }
+
+  // Current timestamp formatted HH:MM:SS
+  const now = new Date();
+  const timeStr = now.toTimeString().split(" ")[0];
+
+  // Clean prompt command display
+  let cleanCmdDisplay = rawCmd;
+  if (/^adb\s+/i.test(cleanCmdDisplay)) {
+    cleanCmdDisplay = cleanCmdDisplay.replace(/^adb\s+/i, "");
+  }
+
+  // Create terminal entry block
+  const block = document.createElement("div");
+  block.className = "terminal-cmd-block running";
+  block.innerHTML = `
+    <div class="terminal-prompt-line">
+      <span class="prompt-icon">➜</span>
+      <span class="prompt-prefix">adb</span>
+      ${displayTarget ? `<span class="prompt-target-tag">${escapeHtml(displayTarget)}</span>` : ""}
+      <span class="prompt-cmd">${escapeHtml(cleanCmdDisplay)}</span>
+      <span class="prompt-time">${timeStr}</span>
+    </div>
+    <div class="terminal-output-body pending">
+      <div class="terminal-running-indicator">
+        <span class="terminal-spinner"></span>
+        <span>Executing ADB command...</span>
+      </div>
+    </div>
+  `;
+
+  if (terminalScreen) {
+    terminalScreen.appendChild(block);
+    terminalScreen.scrollTop = terminalScreen.scrollHeight;
+  }
+
+  try {
+    const res = await ipcRenderer.invoke("scrcpy:exec-command", {
+      serial: selectedTarget === "all" ? "all" : targetSerial,
+      command: rawCmd,
+    });
+
+    block.classList.remove("running");
+    const outputBody = block.querySelector(".terminal-output-body");
+
+    if (res && res.isMultiDevice && Array.isArray(res.results)) {
+      // Multi-device output rendering
+      let multiHtml = "";
+      for (const devRes of res.results) {
+        const isDevOk = devRes.success;
+        const text = devRes.stdout || devRes.stderr || devRes.error || "(No output)";
+        multiHtml += `
+          <div class="multi-device-subentry ${isDevOk ? 'sub-ok' : 'sub-err'}">
+            <div class="multi-dev-header">
+              <span class="multi-dev-badge">📱 ${escapeHtml(devRes.serial)}</span>
+              <span class="multi-dev-status ${isDevOk ? 'ok' : 'err'}">${isDevOk ? 'exit 0' : 'err ' + (devRes.exitCode || 1)}</span>
+              <span class="multi-dev-duration">${devRes.durationMs}ms</span>
+            </div>
+            <pre class="terminal-pre ${isDevOk ? 'text-success' : 'text-error'}">${escapeHtml(text)}</pre>
+          </div>
+        `;
+      }
+
+      if (outputBody) {
+        outputBody.className = `terminal-output-body ${res.success ? 'success' : 'error'}`;
+        outputBody.innerHTML = multiHtml;
+      }
+
+      // Add footer summary
+      const footer = document.createElement("div");
+      footer.className = "terminal-status-footer";
+      footer.innerHTML = `
+        <span class="status-code-pill ${res.success ? 'ok' : 'err'}">${res.success ? 'ALL OK' : 'PARTIAL / ERROR'}</span>
+        <span class="status-duration">${res.results.reduce((acc, r) => acc + (r.durationMs || 0), 0)}ms total</span>
+        <span class="status-device-tag">${res.results.length} Devices</span>
+      `;
+      block.appendChild(footer);
+
+    } else if (res) {
+      const isSuccess = Boolean(res.success);
+      const outputText = isSuccess
+        ? (res.stdout || res.stderr || "(Command completed with no output)")
+        : (res.stderr || res.stdout || res.error || "Execution failed");
+
+      if (outputBody) {
+        outputBody.className = `terminal-output-body ${isSuccess ? 'success' : 'error'}`;
+        outputBody.innerHTML = `<pre class="terminal-pre ${isSuccess ? 'text-success' : 'text-error'}">${escapeHtml(outputText)}</pre>`;
+      }
+
+      const footer = document.createElement("div");
+      footer.className = "terminal-status-footer";
+      footer.innerHTML = `
+        <span class="status-code-pill ${isSuccess ? 'ok' : 'err'}">${isSuccess ? 'exit 0' : 'exit ' + (res.exitCode || 1)}</span>
+        <span class="status-duration">${res.durationMs || 0}ms</span>
+        <span class="status-device-tag">${escapeHtml(res.serial || targetSerial || "default")}</span>
+      `;
+      block.appendChild(footer);
+    } else {
+      if (outputBody) {
+        outputBody.className = "terminal-output-body error";
+        outputBody.innerHTML = `<pre class="terminal-pre text-error">No response from main process.</pre>`;
+      }
+    }
+
+    if (terminalScreen) {
+      terminalScreen.scrollTop = terminalScreen.scrollHeight;
+    }
+
+  } catch (err) {
+    block.classList.remove("running");
+    const outputBody = block.querySelector(".terminal-output-body");
+    if (outputBody) {
+      outputBody.className = "terminal-output-body error";
+      outputBody.innerHTML = `<pre class="terminal-pre text-error">IPC Error: ${escapeHtml(err.message)}</pre>`;
+    }
+    showToast(`❌ Command failed: ${err.message}`);
+  } finally {
+    isExecutingAdbCmd = false;
+    if (runBtn) {
+      runBtn.disabled = false;
+      runBtn.classList.remove("loading");
+      runBtn.innerHTML = `
+        <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+          <polygon points="5 3 19 12 5 21 5 3" fill="currentColor"></polygon>
+        </svg>
+        <span>Run</span>
+      `;
+    }
+  }
+}
+
+/**
+ * Clear the ADB terminal output screen
+ */
+function clearTerminalOutput() {
+  const terminalScreen = document.getElementById("adbTerminalOutput");
+  if (terminalScreen) {
+    terminalScreen.innerHTML = `
+      <div class="terminal-welcome-line">
+        <span class="term-dim">// Terminal output cleared.</span>
+      </div>
+    `;
+    showToast("Terminal screen cleared");
+  }
+}
+
+/**
+ * Copy entire text content of the terminal output to clipboard
+ */
+function copyTerminalOutput() {
+  const terminalScreen = document.getElementById("adbTerminalOutput");
+  if (!terminalScreen) return;
+
+  const rawText = terminalScreen.innerText || terminalScreen.textContent;
+  if (!rawText || !rawText.trim()) {
+    showToast("Terminal is empty");
+    return;
+  }
+
+  navigator.clipboard.writeText(rawText).then(() => {
+    showToast("📋 Terminal output copied to clipboard!");
+  }).catch((err) => {
+    console.error("Failed to copy clipboard:", err);
+    showToast("❌ Could not copy to clipboard");
+  });
+}
+
+/**
  * Initialize Mirror Module Events
  */
 function initMirror() {
@@ -519,6 +880,98 @@ function initMirror() {
     });
   }
 
+  // ADB Command Form & Inputs
+  const adbCmdForm = document.getElementById("adbCommandForm");
+  const adbCmdInput = document.getElementById("adbCmdInput");
+  const adbInputClearBtn = document.getElementById("adbInputClearBtn");
+  const adbCmdDeviceSelect = document.getElementById("adbCmdDeviceSelect");
+  const adbClearTerminalBtn = document.getElementById("adbClearTerminalBtn");
+  const adbCopyTerminalBtn = document.getElementById("adbCopyTerminalBtn");
+
+  if (adbCmdForm) {
+    adbCmdForm.addEventListener("submit", (e) => {
+      e.preventDefault();
+      runAdbCustomCommand();
+    });
+  }
+
+  if (adbCmdInput) {
+    // Toggle clear button on input
+    adbCmdInput.addEventListener("input", () => {
+      if (adbInputClearBtn) {
+        adbInputClearBtn.style.display = adbCmdInput.value ? "flex" : "none";
+      }
+    });
+
+    // Arrow Up / Down command history navigation
+    adbCmdInput.addEventListener("keydown", (e) => {
+      if (e.key === "ArrowUp") {
+        if (adbCommandHistory.length === 0) return;
+        e.preventDefault();
+        if (historyIndex === -1) {
+          historyDraft = adbCmdInput.value;
+          historyIndex = adbCommandHistory.length - 1;
+        } else if (historyIndex > 0) {
+          historyIndex--;
+        }
+        adbCmdInput.value = adbCommandHistory[historyIndex] || "";
+        if (adbInputClearBtn) adbInputClearBtn.style.display = "flex";
+      } else if (e.key === "ArrowDown") {
+        if (historyIndex === -1) return;
+        e.preventDefault();
+        if (historyIndex < adbCommandHistory.length - 1) {
+          historyIndex++;
+          adbCmdInput.value = adbCommandHistory[historyIndex] || "";
+        } else {
+          historyIndex = -1;
+          adbCmdInput.value = historyDraft;
+        }
+        if (adbInputClearBtn) {
+          adbInputClearBtn.style.display = adbCmdInput.value ? "flex" : "none";
+        }
+      }
+    });
+  }
+
+  if (adbInputClearBtn) {
+    adbInputClearBtn.addEventListener("click", () => {
+      if (adbCmdInput) {
+        adbCmdInput.value = "";
+        adbCmdInput.focus();
+      }
+      adbInputClearBtn.style.display = "none";
+    });
+  }
+
+  if (adbCmdDeviceSelect) {
+    adbCmdDeviceSelect.addEventListener("change", () => {
+      updateAdbTargetPill();
+    });
+  }
+
+  if (adbClearTerminalBtn) {
+    adbClearTerminalBtn.addEventListener("click", clearTerminalOutput);
+  }
+
+  if (adbCopyTerminalBtn) {
+    adbCopyTerminalBtn.addEventListener("click", copyTerminalOutput);
+  }
+
+  // Preset Chips
+  const presetChips = document.querySelectorAll(".adb-chip[data-adb-cmd]");
+  presetChips.forEach((chip) => {
+    chip.addEventListener("click", () => {
+      const cmd = chip.getAttribute("data-adb-cmd");
+      if (cmd) {
+        if (adbCmdInput) {
+          adbCmdInput.value = cmd;
+          if (adbInputClearBtn) adbInputClearBtn.style.display = "flex";
+        }
+        runAdbCustomCommand(cmd);
+      }
+    });
+  });
+
   // Listen for session ended IPC events
   ipcRenderer.on("scrcpy:session-ended", (event, data) => {
     scanAdbDevices();
@@ -535,5 +988,8 @@ module.exports = {
   renderAdbDevices,
   launchToolboxAction,
   captureScreenshotAction,
+  runAdbCustomCommand,
+  clearTerminalOutput,
+  copyTerminalOutput,
   initMirror,
 };

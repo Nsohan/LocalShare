@@ -848,6 +848,11 @@ if (!gotTheLock) {
     return await scrcpyManager.getDeviceBattery(serial);
   });
 
+  // Execute arbitrary ADB command on device(s)
+  ipcMain.handle("scrcpy:exec-command", async (event, params) => {
+    return await scrcpyManager.executeCustomAdbCommand(params);
+  });
+
   // Get active sessions
   ipcMain.handle("scrcpy:get-active-sessions", async () => {
     return scrcpyManager.getActiveSessions();

@@ -639,6 +639,131 @@ function getActiveSessions() {
   }));
 }
 
+/**
+ * Parse an arbitrary command string into arguments array, respecting quotes
+ */
+function parseCommandArgs(cmdStr) {
+  const args = [];
+  let current = "";
+  let inQuotes = false;
+  let quoteChar = "";
+
+  for (let i = 0; i < cmdStr.length; i++) {
+    const char = cmdStr[i];
+    if ((char === '"' || char === "'") && !inQuotes) {
+      inQuotes = true;
+      quoteChar = char;
+    } else if (char === quoteChar && inQuotes) {
+      inQuotes = false;
+      quoteChar = "";
+    } else if (char === " " && !inQuotes) {
+      if (current.length > 0) {
+        args.push(current);
+        current = "";
+      }
+    } else {
+      current += char;
+    }
+  }
+  if (current.length > 0) {
+    args.push(current);
+  }
+  return args;
+}
+
+/**
+ * Execute an arbitrary ADB command against a specific device or all devices
+ * @param {Object} params - { serial, command, timeoutMs }
+ */
+async function executeCustomAdbCommand({ serial, command, timeoutMs = 15000 } = {}) {
+  const { adbPath } = getBinaryPaths();
+  if (!command || typeof command !== "string" || !command.trim()) {
+    return { success: false, error: "Command cannot be empty" };
+  }
+
+  let cleanCmd = command.trim();
+  // Strip leading "adb " if user prefixed it
+  if (/^adb\s+/i.test(cleanCmd)) {
+    cleanCmd = cleanCmd.replace(/^adb\s+/i, "");
+  }
+
+  // Support running on all online devices
+  if (serial === "all") {
+    const devList = await listAdbDevices();
+    const readyDevices = (devList.devices || []).filter((d) => d.state === "device");
+    if (readyDevices.length === 0) {
+      return { success: false, error: "No online devices connected." };
+    }
+    const results = await Promise.all(
+      readyDevices.map((d) =>
+        executeCustomAdbCommand({ serial: d.serial, command: cleanCmd, timeoutMs })
+      )
+    );
+    return {
+      success: results.every((r) => r.success),
+      isMultiDevice: true,
+      command: cleanCmd,
+      results,
+    };
+  }
+
+  const rawArgs = parseCommandArgs(cleanCmd);
+  if (rawArgs.length === 0) {
+    return { success: false, error: "No valid arguments provided" };
+  }
+
+  const finalArgs = [];
+  if (serial && serial !== "default") {
+    finalArgs.push("-s", serial);
+  }
+  finalArgs.push(...rawArgs);
+
+  const startTime = Date.now();
+
+  return new Promise((resolve) => {
+    logger.info(`Executing ADB command: ${adbPath} ${finalArgs.join(" ")}`);
+    execFile(
+      adbPath,
+      finalArgs,
+      { timeout: timeoutMs, maxBuffer: 10 * 1024 * 1024 },
+      (error, stdout, stderr) => {
+        const durationMs = Date.now() - startTime;
+        const outStr = stdout ? stdout.toString().trim() : "";
+        const errStr = stderr ? stderr.toString().trim() : "";
+
+        if (error) {
+          logger.warn(
+            `ADB command failed (${finalArgs.join(" ")}):`,
+            error.message
+          );
+          return resolve({
+            success: false,
+            command: cleanCmd,
+            serial: serial || "default",
+            args: finalArgs,
+            stdout: outStr,
+            stderr: errStr || error.message,
+            error: error.message,
+            exitCode: error.code || 1,
+            durationMs,
+          });
+        }
+
+        resolve({
+          success: true,
+          command: cleanCmd,
+          serial: serial || "default",
+          args: finalArgs,
+          stdout: outStr,
+          stderr: errStr,
+          exitCode: 0,
+          durationMs,
+        });
+      }
+    );
+  });
+}
+
 module.exports = {
   getBinaryPaths,
   checkBinaries,
@@ -648,6 +773,7 @@ module.exports = {
   disconnectWireless,
   takeScreenshot,
   getDeviceBattery,
+  executeCustomAdbCommand,
   startMirror,
   stopMirror,
   stopAllSessions,
