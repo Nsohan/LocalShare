@@ -13,6 +13,8 @@ const {
 } = require("electron");
 const path = require("path");
 const fs = require("fs");
+const http = require("http");
+const https = require("https");
 const os = require("os");
 const cp = require("child_process");
 const logger = require("../config/logger");
@@ -589,6 +591,269 @@ async function removeSharedFile(filePath = null, id = null) {
   return sharedFiles;
 }
 
+/**
+ * Normalize and validate an HTTP/HTTPS device origin URL
+ * @param {string} rawUrl
+ * @returns {string|null}
+ */
+function normalizePhoneOrigin(rawUrl) {
+  if (typeof rawUrl !== "string" || !rawUrl.trim()) return null;
+  let candidate = rawUrl.trim();
+  if (!/^[a-zA-Z][a-zA-Z0-9+.-]*:/.test(candidate)) {
+    candidate = `http://${candidate}`;
+  }
+  try {
+    const parsed = new URL(candidate);
+    if (parsed.protocol !== "http:" && parsed.protocol !== "https:") {
+      return null;
+    }
+    return parsed.origin;
+  } catch {
+    return null;
+  }
+}
+
+/**
+ * Dispatch a PhoneServer `/command?<param>=<text>` GET request
+ * @param {string} deviceUrl
+ * @param {"clip"|"write"} paramName
+ * @param {string} text
+ * @returns {Promise<{success: boolean, status?: number, error?: string}>}
+ */
+async function sendPhoneCommand(deviceUrl, paramName, text) {
+  const origin = normalizePhoneOrigin(deviceUrl);
+  if (!origin) {
+    return { success: false, error: "Invalid device URL" };
+  }
+  if (typeof text !== "string" || text.length === 0) {
+    return { success: false, error: "Text cannot be empty" };
+  }
+
+  const controller = new AbortController();
+  const timeoutId = setTimeout(() => controller.abort(), 5000);
+  const targetUrl = `${origin}/command?${paramName}=${encodeURIComponent(text)}`;
+
+  try {
+    const res = await fetch(targetUrl, {
+      method: "GET",
+      signal: controller.signal,
+    });
+    await res.body?.cancel?.().catch(() => {});
+    if (res.status >= 200 && res.status < 300) {
+      return { success: true, status: res.status };
+    }
+    return {
+      success: false,
+      status: res.status,
+      error: `Device returned HTTP ${res.status}`,
+    };
+  } catch (err) {
+    return {
+      success: false,
+      error: err.name === "AbortError" ? "Request timed out" : err.message,
+    };
+  } finally {
+    clearTimeout(timeoutId);
+  }
+}
+
+/**
+ * Stream a single file as multipart/form-data (field "file") to PhoneServer `/files`
+ * @param {string} origin
+ * @param {string} filePath
+ * @param {number} totalSize
+ */
+async function uploadMultipartFileToPhone(origin, filePath, totalSize) {
+  const stat = await fs.promises.stat(filePath);
+  const rawName = path.basename(filePath);
+  const safeDispositionName = rawName.replace(/["\r\n]/g, "_");
+  const safeHeaderName = rawName
+    .replace(/[\r\n]/g, "_")
+    .replace(/[^\x20-\x7e\xa0-\xff]/g, "_");
+  const boundary = `----LocalShareBoundary${Date.now().toString(36)}${Math.random().toString(36).slice(2, 8)}`;
+
+  const preamble = Buffer.from(
+    `--${boundary}\r\n` +
+      `Content-Disposition: form-data; name="file"; filename="${safeDispositionName}"\r\n` +
+      `Content-Type: application/octet-stream\r\n\r\n`,
+    "utf8",
+  );
+  const epilogue = Buffer.from(`\r\n--${boundary}--\r\n`, "utf8");
+  const contentLength = preamble.length + stat.size + epilogue.length;
+
+  const target = new URL("/files", origin);
+  const transport = target.protocol === "https:" ? https : http;
+
+  return new Promise((resolve, reject) => {
+    let settled = false;
+    let stream = null;
+    const finish = (err, result) => {
+      if (settled) return;
+      settled = true;
+      if (stream && !stream.destroyed) {
+        stream.destroy();
+      }
+      if (err) reject(err);
+      else resolve(result);
+    };
+
+    const req = transport.request(
+      {
+        protocol: target.protocol,
+        hostname: target.hostname,
+        port: target.port || (target.protocol === "https:" ? 443 : 80),
+        path: target.pathname,
+        method: "POST",
+        headers: {
+          "Content-Type": `multipart/form-data; boundary=${boundary}`,
+          "Content-Length": String(contentLength),
+          "X-Total-Size": String(totalSize),
+          "X-File-Name": safeHeaderName,
+        },
+      },
+      (res) => {
+        res.resume();
+        res.on("end", () => {
+          if (res.statusCode >= 200 && res.statusCode < 300) {
+            finish(null, { status: res.statusCode, fileName: rawName });
+          } else {
+            finish(
+              new Error(`Device returned HTTP ${res.statusCode} for ${rawName}`),
+            );
+          }
+        });
+      },
+    );
+
+    req.setTimeout(60000, () => {
+      req.destroy(new Error(`Upload timed out for ${rawName}`));
+    });
+
+    req.on("error", (err) => finish(err));
+
+    req.write(preamble);
+    stream = fs.createReadStream(filePath);
+    stream.on("error", (err) => {
+      req.destroy(err);
+      finish(err);
+    });
+    stream.on("end", () => {
+      req.end(epilogue);
+    });
+    stream.pipe(req, { end: false });
+  });
+}
+
+/**
+ * Send PC clipboard (or provided text) to phone clipboard via GET /command?clip=
+ */
+async function sendClipboardToPhone({ deviceUrl, text } = {}) {
+  try {
+    const clipText =
+      typeof text === "string" ? text : clipboard.readText() || "";
+    if (!clipText) {
+      return {
+        success: false,
+        empty: true,
+        error: "PC clipboard has no text",
+      };
+    }
+    const res = await sendPhoneCommand(deviceUrl, "clip", clipText);
+    if (!res.success) return res;
+    const preview =
+      clipText.length > 40 ? `${clipText.slice(0, 40)}...` : clipText;
+    return { ...res, preview };
+  } catch (err) {
+    logger.error("sendClipboardToPhone error:", err);
+    return { success: false, error: err.message };
+  }
+}
+
+/**
+ * Write text onto phone via GET /command?write=
+ */
+async function writeTextToPhone({ deviceUrl, text } = {}) {
+  try {
+    return await sendPhoneCommand(deviceUrl, "write", text);
+  } catch (err) {
+    logger.error("writeTextToPhone error:", err);
+    return { success: false, error: err.message };
+  }
+}
+
+/**
+ * Pick file(s) and upload sequentially to PhoneServer POST /files
+ */
+async function sendFilesToPhone({ deviceUrl, filePaths } = {}) {
+  try {
+    const origin = normalizePhoneOrigin(deviceUrl);
+    if (!origin) {
+      return { success: false, error: "Invalid device URL" };
+    }
+
+    let selectedPaths = [];
+    if (Array.isArray(filePaths) && filePaths.length > 0) {
+      selectedPaths = filterValidFiles(filePaths);
+    } else {
+      const win = getDashboardWindow();
+      const parentWin = win && win.isVisible() ? win : undefined;
+      const result = await dialog.showOpenDialog(parentWin, {
+        title: "Select Files to Send to Device",
+        buttonLabel: "Send",
+        properties: ["openFile", "multiSelections"],
+      });
+      if (result.canceled || !result.filePaths?.length) {
+        return { success: false, canceled: true };
+      }
+      selectedPaths = filterValidFiles(result.filePaths);
+    }
+
+    if (selectedPaths.length === 0) {
+      return { success: false, error: "No valid files selected" };
+    }
+
+    const stats = await Promise.all(
+      selectedPaths.map((p) => fs.promises.stat(p)),
+    );
+    const totalSize = stats.reduce((sum, s) => sum + s.size, 0);
+
+    let sentCount = 0;
+    const failed = [];
+    for (const filePath of selectedPaths) {
+      try {
+        await uploadMultipartFileToPhone(origin, filePath, totalSize);
+        sentCount++;
+      } catch (err) {
+        logger.error("sendFilesToPhone upload error:", err);
+        failed.push({
+          fileName: path.basename(filePath),
+          error: err.message,
+        });
+      }
+    }
+
+    if (sentCount === 0) {
+      return {
+        success: false,
+        error: failed[0]?.error || "Failed to send file(s)",
+        sentCount: 0,
+        totalCount: selectedPaths.length,
+        failed,
+      };
+    }
+
+    return {
+      success: true,
+      sentCount,
+      totalCount: selectedPaths.length,
+      failed,
+    };
+  } catch (err) {
+    logger.error("sendFilesToPhone error:", err);
+    return { success: false, error: err.message };
+  }
+}
+
 // Handle second instance (when app is already running)
 if (!gotTheLock) {
   logger.info("Another instance is already running, quitting...");
@@ -1112,6 +1377,21 @@ if (!gotTheLock) {
     }
   });
 
+  // Send PC clipboard (or provided text) to phone clipboard via GET /command?clip=
+  ipcMain.handle("devices:send-clipboard", async (_event, payload = {}) => {
+    return sendClipboardToPhone(payload);
+  });
+
+  // Write text onto phone via GET /command?write=
+  ipcMain.handle("devices:write-text", async (_event, payload = {}) => {
+    return writeTextToPhone(payload);
+  });
+
+  // Pick file(s) and upload sequentially to PhoneServer POST /files
+  ipcMain.handle("devices:send-file", async (_event, payload = {}) => {
+    return sendFilesToPhone(payload);
+  });
+
   // ================= SCRCPY SCREEN MIRROR IPC HANDLERS =================
 
   // Check binary status (scrcpy and adb)
@@ -1324,6 +1604,8 @@ if (!gotTheLock) {
           removeSharedFile,
           broadcastDashboardState,
           getPairedDevices: getDevicesWithRuntime,
+          sendClipboardToDevice: sendClipboardToPhone,
+          sendFilesToDevice: sendFilesToPhone,
         },
       );
 

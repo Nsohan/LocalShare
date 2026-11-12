@@ -686,6 +686,16 @@ body[data-theme="light"] .pin-box {
   margin-top: 6px;
 }
 
+.write-text-textarea {
+  resize: vertical;
+  min-height: 96px;
+  line-height: 1.45;
+}
+
+.write-text-modal-actions {
+  justify-content: flex-end;
+}
+
 .btn-spinner {
   animation: spin 1s linear infinite;
 }

@@ -44,6 +44,8 @@ let addFilesCallback = null;
 let removeFileCallback = null;
 let broadcastStateCallback = null;
 let getPairedDevicesCallback = null;
+let sendClipboardToDeviceCallback = null;
+let sendFilesToDeviceCallback = null;
 let lastPairedDevicesSig = "";
 const trayMenuIconCache = new Map();
 
@@ -151,6 +153,8 @@ function createTray(
   removeFileCallback = options.removeSharedFile || null;
   broadcastStateCallback = options.broadcastDashboardState || null;
   getPairedDevicesCallback = options.getPairedDevices || null;
+  sendClipboardToDeviceCallback = options.sendClipboardToDevice || null;
+  sendFilesToDeviceCallback = options.sendFilesToDevice || null;
 
   try {
     const appNativeImg = getAppNativeImage();
@@ -201,6 +205,20 @@ function createTray(
   } catch (error) {
     logger.error("Error creating tray icon:", error);
     return null;
+  }
+}
+
+function sendToDashboardWhenReady(channel, payload) {
+  const win = showDashboardWindow();
+  if (!win || win.isDestroyed()) return;
+  if (win.webContents.isLoading()) {
+    win.webContents.once("did-finish-load", () => {
+      if (!win.isDestroyed()) {
+        win.webContents.send(channel, payload);
+      }
+    });
+  } else {
+    win.webContents.send(channel, payload);
   }
 }
 
@@ -590,20 +608,27 @@ function updateTrayMenu(sharedFiles = null) {
       },
     ];
 
-    // Other Devices (Paired Devices) Submenu
+    // My Device (Paired Devices) Submenu
     const pairedDevices = getPairedDevicesList();
     lastPairedDevicesSig = getPairedDevicesSignature(pairedDevices);
 
+    const notifyTrayDeviceResult = (body) => {
+      if (notificationsEnabled) {
+        new Notification({
+          title: "LocalShare",
+          body,
+          icon: getAppIcon(),
+        }).show();
+      }
+    };
+
     const otherDevicesSubmenu = [
       {
-        label: "Open Paired Devices",
+        label: "Open My Device",
         iconUrl: getTrayMenuIconUrl("phone"),
         click: () => {
-          logger.info("Tray: Opening Paired Devices dashboard");
-          const win = showDashboardWindow();
-          if (win && !win.isDestroyed()) {
-            win.webContents.send("dashboard:switch-tab", "devices");
-          }
+          logger.info("Tray: Opening My Device dashboard");
+          sendToDashboardWhenReady("dashboard:switch-tab", "devices");
         },
       },
       { type: "separator" },
@@ -629,6 +654,71 @@ function updateTrayMenu(sharedFiles = null) {
           iconUrl: getTrayMenuIconUrl(isOnline ? "active" : "phone"),
           submenu: [
             {
+              label: "Send Clipboard",
+              iconUrl: getTrayMenuIconUrl("copy"),
+              enabled: Boolean(safeUrl && sendClipboardToDeviceCallback),
+              click: async () => {
+                if (!safeUrl || !sendClipboardToDeviceCallback) return;
+                logger.info("Tray: Sending clipboard to device:", devName);
+                const res = await sendClipboardToDeviceCallback({
+                  deviceUrl: safeUrl,
+                });
+                if (res && res.success) {
+                  notifyTrayDeviceResult(
+                    `Sent clipboard to ${devName}: "${res.preview}"`,
+                  );
+                } else if (res && res.empty) {
+                  notifyTrayDeviceResult("PC clipboard has no text");
+                } else {
+                  notifyTrayDeviceResult(
+                    `Failed to send clipboard to ${devName}: ${res?.error || "Device unreachable"}`,
+                  );
+                }
+              },
+            },
+            {
+              label: "Write Text...",
+              iconUrl: getTrayMenuIconUrl("keyboard"),
+              enabled: Boolean(safeUrl),
+              click: () => {
+                if (!safeUrl) return;
+                logger.info("Tray: Opening Write Text for device:", devName);
+                sendToDashboardWhenReady("devices:focus-write-text", {
+                  deviceId: device.id || "",
+                  deviceUrl: safeUrl,
+                });
+              },
+            },
+            {
+              label: "Send File...",
+              iconUrl: getTrayMenuIconUrl("files"),
+              enabled: Boolean(safeUrl && sendFilesToDeviceCallback),
+              click: async () => {
+                if (!safeUrl || !sendFilesToDeviceCallback) return;
+                logger.info("Tray: Sending file(s) to device:", devName);
+                const res = await sendFilesToDeviceCallback({
+                  deviceUrl: safeUrl,
+                });
+                if (res && res.canceled) return;
+                if (res && res.success) {
+                  if (res.failed && res.failed.length > 0) {
+                    notifyTrayDeviceResult(
+                      `Sent ${res.sentCount}/${res.totalCount} file(s) to ${devName}`,
+                    );
+                  } else {
+                    notifyTrayDeviceResult(
+                      `Sent ${res.sentCount} file${res.sentCount !== 1 ? "s" : ""} to ${devName}`,
+                    );
+                  }
+                } else {
+                  notifyTrayDeviceResult(
+                    `Failed to send file to ${devName}: ${res?.error || "Device unreachable"}`,
+                  );
+                }
+              },
+            },
+            { type: "separator" },
+            {
               label: "Open in Browser",
               iconUrl: getTrayMenuIconUrl("browser"),
               enabled: Boolean(safeUrl),
@@ -647,13 +737,7 @@ function updateTrayMenu(sharedFiles = null) {
                 if (safeUrl) {
                   clipboard.writeText(safeUrl);
                   logger.info("Tray: Copied paired device URL:", safeUrl);
-                  if (notificationsEnabled) {
-                    new Notification({
-                      title: "LocalShare",
-                      body: `Device URL copied: ${safeUrl}`,
-                      icon: getAppIcon(),
-                    }).show();
-                  }
+                  notifyTrayDeviceResult(`Device URL copied: ${safeUrl}`);
                 }
               },
             },
@@ -661,10 +745,7 @@ function updateTrayMenu(sharedFiles = null) {
               label: "View in Dashboard",
               iconUrl: getTrayMenuIconUrl("dashboard"),
               click: () => {
-                const win = showDashboardWindow();
-                if (win && !win.isDestroyed()) {
-                  win.webContents.send("dashboard:switch-tab", "devices");
-                }
+                sendToDashboardWhenReady("dashboard:switch-tab", "devices");
               },
             },
           ],
@@ -688,10 +769,7 @@ function updateTrayMenu(sharedFiles = null) {
           label: "Pair via QR Code...",
           iconUrl: getTrayMenuIconUrl("qr"),
           click: () => {
-            const win = showDashboardWindow();
-            if (win && !win.isDestroyed()) {
-              win.webContents.send("dashboard:switch-tab", "connect");
-            }
+            sendToDashboardWhenReady("dashboard:switch-tab", "connect");
           },
         },
       );
@@ -700,8 +778,8 @@ function updateTrayMenu(sharedFiles = null) {
     menuTemplate.push({
       label:
         pairedDevices.length > 0
-          ? `Other Devices (${pairedDevices.length})`
-          : "Other Devices (No Device)",
+          ? `My Device (${pairedDevices.length})`
+          : "My Device (No Device)",
       iconUrl: getTrayMenuIconUrl("phone"),
       submenu: otherDevicesSubmenu,
     });

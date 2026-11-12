@@ -3,7 +3,7 @@ const { currentState, getCurrentView, setCurrentView } = require("./state");
 const VIEW_TITLES = {
   files: "Files & Sharing",
   connect: "Connect & QR Code",
-  devices: "Your Devices",
+  devices: "My Device",
   mirror: "ADB Devices",
   api: "API Explorer",
   settings: "Application Settings",

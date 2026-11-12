@@ -201,20 +201,6 @@ function updateStatsSummary(devices = []) {
   }
 }
 
-function extractHostForMirror(safeUrl, rawDevice) {
-  if (safeUrl) {
-    try {
-      return new URL(safeUrl).hostname;
-    } catch {
-      // Fallback below
-    }
-  }
-  if (rawDevice?.ip && typeof rawDevice.ip === "string") {
-    return rawDevice.ip;
-  }
-  return "";
-}
-
 function renderDevicesList(devices = []) {
   const devicesList = document.getElementById("devicesList");
   const devicesEmptyState = document.getElementById("devicesEmptyState");
@@ -270,10 +256,20 @@ function renderDevicesList(devices = []) {
             <span class="device-type-label">${subLabel}</span>
           </div>
         </div>
-        <span class="device-status-pill ${statusClass}" data-role="status-pill" id="deviceStatus-${safeId}">
-          <span class="status-dot"></span>
-          <span data-role="status-text">${escapeHtml(statusLabel)}</span>
-        </span>
+        <div class="device-card-top-right">
+          <span class="device-status-pill ${statusClass}" data-role="status-pill" id="deviceStatus-${safeId}">
+            <span class="status-dot"></span>
+            <span data-role="status-text">${escapeHtml(statusLabel)}</span>
+          </span>
+          <button type="button" class="device-remove-icon-btn" data-action="remove" title="Remove paired device" aria-label="Remove paired device">
+            <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+              <polyline points="3 6 5 6 21 6"></polyline>
+              <path d="M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6m3 0V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2"></path>
+              <line x1="10" y1="11" x2="10" y2="17"></line>
+              <line x1="14" y1="11" x2="14" y2="17"></line>
+            </svg>
+          </button>
+        </div>
       </div>
 
       <div class="device-telemetry-row" data-role="telemetry" style="display: none;">
@@ -308,7 +304,7 @@ function renderDevicesList(devices = []) {
 
       <div class="device-card-footer">
         <div class="device-card-actions">
-          <button class="btn btn-sm btn-secondary" data-action="ping" title="Test HTTP connection to phone">
+          <button type="button" class="btn btn-sm btn-secondary" data-action="ping" title="Test HTTP connection to phone">
             <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
               <path d="M5 12.55a11 11 0 0 1 14.08 0"></path>
               <path d="M1.42 9a16 16 0 0 1 21.16 0"></path>
@@ -316,15 +312,7 @@ function renderDevicesList(devices = []) {
             </svg>
             <span>Test Ping</span>
           </button>
-          <button class="btn btn-sm btn-primary" data-action="mirror" title="Mirror phone screen with scrcpy">
-            <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
-              <rect x="2" y="3" width="20" height="14" rx="2" ry="2"></rect>
-              <line x1="8" y1="21" x2="16" y2="21"></line>
-              <line x1="12" y1="17" x2="12" y2="21"></line>
-            </svg>
-            <span>Mirror</span>
-          </button>
-          <button class="btn btn-sm btn-secondary" data-action="browse" title="Open device URL in default browser">
+          <button type="button" class="btn btn-sm btn-secondary" data-action="browse" title="Open device URL in default browser">
             <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
               <circle cx="12" cy="12" r="10"></circle>
               <line x1="2" y1="12" x2="22" y2="12"></line>
@@ -332,12 +320,27 @@ function renderDevicesList(devices = []) {
             </svg>
             <span>Open</span>
           </button>
-          <button class="btn btn-sm btn-ghost danger" data-action="remove" title="Remove paired device">
+          <button type="button" class="btn btn-sm btn-secondary" data-action="send-clipboard" title="Send PC clipboard text to phone clipboard (/command?clip=)">
             <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
-              <polyline points="3 6 5 6 21 6"></polyline>
-              <path d="M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6m3 0V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2"></path>
+              <path d="M16 4h2a2 2 0 0 1 2 2v14a2 2 0 0 1-2 2H6a2 2 0 0 1-2-2V6a2 2 0 0 1 2-2h2"></path>
+              <rect x="8" y="2" width="8" height="4" rx="1" ry="1"></rect>
             </svg>
-            <span>Remove</span>
+            <span>Send Clipboard</span>
+          </button>
+          <button type="button" class="btn btn-sm btn-secondary" data-action="write-text" title="Type text onto phone (/command?write=)">
+            <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+              <path d="M12 20h9"></path>
+              <path d="M16.5 3.5a2.121 2.121 0 0 1 3 3L7 19l-4 1 1-4L16.5 3.5z"></path>
+            </svg>
+            <span>Write Text</span>
+          </button>
+          <button type="button" class="btn btn-sm btn-primary device-action-full" data-action="send-file" title="Send file(s) to phone (POST /files)">
+            <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+              <path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"></path>
+              <polyline points="17 8 12 3 7 8"></polyline>
+              <line x1="12" y1="3" x2="12" y2="15"></line>
+            </svg>
+            <span>Send File</span>
           </button>
         </div>
       </div>
@@ -345,23 +348,7 @@ function renderDevicesList(devices = []) {
 
     applyTelemetryToCard(card, device);
 
-    // Mirror button reads current device host into wirelessIpInput without touching scrcpy code
-    const mirrorBtn = card.querySelector('[data-action="mirror"]');
-    if (mirrorBtn) {
-      mirrorBtn.addEventListener("click", () => {
-        try {
-          const hostIp = extractHostForMirror(safeUrl, device);
-          const { switchView } = require("./navigation");
-          switchView("mirror");
-          if (hostIp) {
-            const ipInput = document.getElementById("wirelessIpInput");
-            if (ipInput) ipInput.value = hostIp;
-          }
-        } catch (e) {
-          console.error("Error switching to mirror view:", e);
-        }
-      });
-    }
+    const targetUrl = safeUrl || device.url || "";
 
     const pingBtn = card.querySelector('[data-action="ping"]');
     if (pingBtn) {
@@ -374,7 +361,6 @@ function renderDevicesList(devices = []) {
         if (statusText) statusText.textContent = "Checking...";
 
         try {
-          const targetUrl = safeUrl || device.url || "";
           const testRes = await ipcRenderer.invoke("devices:test-connection", targetUrl);
           if (testRes && testRes.online) {
             if (statusPill) statusPill.className = "device-status-pill online";
@@ -397,6 +383,80 @@ function renderDevicesList(devices = []) {
             </svg>
             <span>Test Ping</span>
           `;
+        }
+      });
+    }
+
+    const sendClipboardBtn = card.querySelector('[data-action="send-clipboard"]');
+    if (sendClipboardBtn) {
+      if (!safeUrl) sendClipboardBtn.disabled = true;
+      const defaultClipHtml = sendClipboardBtn.innerHTML;
+      sendClipboardBtn.addEventListener("click", async () => {
+        if (!safeUrl) return;
+        sendClipboardBtn.disabled = true;
+        sendClipboardBtn.textContent = "Sending...";
+        try {
+          const res = await ipcRenderer.invoke("devices:send-clipboard", {
+            deviceUrl: safeUrl,
+          });
+          if (res && res.success) {
+            showToast(`✓ Sent clipboard to ${device.name}: "${res.preview}"`);
+          } else if (res && res.empty) {
+            showToast("⚠️ PC clipboard has no text");
+          } else {
+            showToast(`⚠️ Failed to send clipboard: ${res?.error || "Device unreachable"}`);
+          }
+        } catch (err) {
+          showToast(`Error sending clipboard: ${err.message}`);
+        } finally {
+          sendClipboardBtn.disabled = !safeUrl;
+          sendClipboardBtn.innerHTML = defaultClipHtml;
+        }
+      });
+    }
+
+    const writeTextBtn = card.querySelector('[data-action="write-text"]');
+    if (writeTextBtn) {
+      if (!safeUrl) writeTextBtn.disabled = true;
+      writeTextBtn.addEventListener("click", () => {
+        if (!safeUrl) return;
+        const { openWriteTextModal } = require("./modals");
+        openWriteTextModal({
+          deviceName: device.name || "Device",
+          deviceUrl: safeUrl,
+        });
+      });
+    }
+
+    const sendFileBtn = card.querySelector('[data-action="send-file"]');
+    if (sendFileBtn) {
+      if (!safeUrl) sendFileBtn.disabled = true;
+      const defaultFileHtml = sendFileBtn.innerHTML;
+      sendFileBtn.addEventListener("click", async () => {
+        if (!safeUrl) return;
+        sendFileBtn.disabled = true;
+        sendFileBtn.textContent = "Sending...";
+        try {
+          const res = await ipcRenderer.invoke("devices:send-file", {
+            deviceUrl: safeUrl,
+          });
+          if (res && res.canceled) {
+            return;
+          }
+          if (res && res.success) {
+            if (res.failed && res.failed.length > 0) {
+              showToast(`⚠️ Sent ${res.sentCount}/${res.totalCount} file(s) to ${device.name}`);
+            } else {
+              showToast(`✓ Sent ${res.sentCount} file${res.sentCount !== 1 ? "s" : ""} to ${device.name}`);
+            }
+          } else {
+            showToast(`⚠️ Failed to send file: ${res?.error || "Device unreachable"}`);
+          }
+        } catch (err) {
+          showToast(`Error sending file: ${err.message}`);
+        } finally {
+          sendFileBtn.disabled = !safeUrl;
+          sendFileBtn.innerHTML = defaultFileHtml;
         }
       });
     }
@@ -509,11 +569,32 @@ function initDevices() {
   }
 }
 
+function focusDeviceWriteInput({ deviceId = "", deviceUrl = "" } = {}) {
+  const list = Array.isArray(currentState.devices) ? currentState.devices : [];
+  if (list.length === 0) return false;
+
+  const targetDevice =
+    list.find((d) => deviceId && d.id === deviceId) ||
+    list.find((d) => deviceUrl && sanitizeHttpUrl(d.url) === sanitizeHttpUrl(deviceUrl)) ||
+    list.find((d) => Boolean(sanitizeHttpUrl(d.url)));
+  if (!targetDevice) return false;
+
+  const safeUrl = sanitizeHttpUrl(targetDevice.url);
+  if (!safeUrl) return false;
+
+  const { openWriteTextModal } = require("./modals");
+  return openWriteTextModal({
+    deviceName: targetDevice.name || "Device",
+    deviceUrl: safeUrl,
+  });
+}
+
 module.exports = {
   escapeHtml,
   sanitizeHttpUrl,
   formatSubnetDisplay,
   renderDevicesList,
   patchDeviceStatuses,
+  focusDeviceWriteInput,
   initDevices,
 };

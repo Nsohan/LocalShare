@@ -27,7 +27,12 @@ const { currentState, showToast } = require("./js/state");
 const { switchView, initNavigation, setNavigationCallbacks } = require("./js/navigation");
 const { renderFilesView, initFiles } = require("./js/files");
 const { generateQRCode, initConnect } = require("./js/connect");
-const { renderDevicesList, patchDeviceStatuses, initDevices } = require("./js/devices");
+const {
+  renderDevicesList,
+  patchDeviceStatuses,
+  focusDeviceWriteInput,
+  initDevices,
+} = require("./js/devices");
 const { scanAdbDevices, checkScrcpyStatus, initMirror } = require("./js/mirror");
 const { initModals, setOnDeviceAdded, handlePairProgress } = require("./js/modals");
 const { updateApiTokens, initApi } = require("./js/api");
@@ -61,14 +66,31 @@ setOnDeviceAdded(() => {
 // IPC Event Listeners
 // ==========================
 
+let pendingWriteFocusPayload = null;
+
 ipcRenderer.on("dashboard:switch-tab", (event, tab) => {
   switchView(tab);
+});
+
+ipcRenderer.on("devices:focus-write-text", (_event, payload) => {
+  switchView("devices");
+  if (!focusDeviceWriteInput(payload || {})) {
+    pendingWriteFocusPayload = payload || {};
+  } else {
+    pendingWriteFocusPayload = null;
+  }
 });
 
 ipcRenderer.on("dashboard:state-updated", (event, state) => {
   if (state) {
     Object.assign(currentState, state);
     renderDashboard();
+    if (
+      pendingWriteFocusPayload &&
+      focusDeviceWriteInput(pendingWriteFocusPayload)
+    ) {
+      pendingWriteFocusPayload = null;
+    }
   }
 });
 

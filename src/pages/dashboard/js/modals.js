@@ -10,6 +10,8 @@ let onDeviceAddedCallback = null;
 let activeConfirmSession = null;
 let lastScanCandidates = [];
 let scanInProgress = false;
+let activeWriteTextTarget = null;
+let isWritingText = false;
 
 function setOnDeviceAdded(callback) {
   onDeviceAddedCallback = callback;
@@ -525,6 +527,107 @@ async function startPairingWorkflow(rawUrl, customName) {
   })();
 }
 
+function openWriteTextModal({ deviceName = "Device", deviceUrl = "" } = {}) {
+  const modal = document.getElementById("writeTextModal");
+  const targetLabel = document.getElementById("writeTextTargetLabel");
+  const input = document.getElementById("writeTextModalInput");
+  const errBox = document.getElementById("writeTextErrorAlert");
+  const submitBtn = document.getElementById("submitWriteTextBtn");
+  const submitText = document.getElementById("submitWriteTextBtnText");
+  const pasteBtn = document.getElementById("pasteWriteTextBtn");
+  const cancelBtn = document.getElementById("cancelWriteTextBtn");
+
+  if (!modal || !deviceUrl) return false;
+
+  activeWriteTextTarget = { deviceName, deviceUrl };
+  isWritingText = false;
+
+  if (targetLabel) {
+    targetLabel.textContent = `Send text to ${deviceName} (${deviceUrl.replace(/^https?:\/\//i, "")})`;
+  }
+  if (errBox) errBox.style.display = "none";
+  if (submitBtn) submitBtn.disabled = false;
+  if (submitText) submitText.textContent = "Write";
+  if (pasteBtn) pasteBtn.disabled = false;
+  if (cancelBtn) cancelBtn.disabled = false;
+  if (input) {
+    input.disabled = false;
+    input.value = "";
+  }
+
+  modal.style.display = "flex";
+  if (input) {
+    requestAnimationFrame(() => input.focus());
+  }
+  return true;
+}
+
+function closeWriteTextModal() {
+  const modal = document.getElementById("writeTextModal");
+  const errBox = document.getElementById("writeTextErrorAlert");
+  if (modal) modal.style.display = "none";
+  if (errBox) errBox.style.display = "none";
+  activeWriteTextTarget = null;
+  isWritingText = false;
+}
+
+async function submitWriteTextModal() {
+  if (isWritingText || !activeWriteTextTarget) return;
+
+  const input = document.getElementById("writeTextModalInput");
+  const errBox = document.getElementById("writeTextErrorAlert");
+  const errText = document.getElementById("writeTextErrorText");
+  const submitBtn = document.getElementById("submitWriteTextBtn");
+  const submitText = document.getElementById("submitWriteTextBtnText");
+  const pasteBtn = document.getElementById("pasteWriteTextBtn");
+  const cancelBtn = document.getElementById("cancelWriteTextBtn");
+
+  const text = input ? input.value : "";
+  if (!text) {
+    if (errBox) errBox.style.display = "flex";
+    if (errText) errText.textContent = "Please enter or paste text to write.";
+    if (input) input.focus();
+    return;
+  }
+
+  isWritingText = true;
+  if (errBox) errBox.style.display = "none";
+  if (input) input.disabled = true;
+  if (submitBtn) submitBtn.disabled = true;
+  if (pasteBtn) pasteBtn.disabled = true;
+  if (cancelBtn) cancelBtn.disabled = true;
+  if (submitText) submitText.textContent = "Writing...";
+
+  try {
+    const res = await ipcRenderer.invoke("devices:write-text", {
+      deviceUrl: activeWriteTextTarget.deviceUrl,
+      text,
+    });
+    if (res && res.success) {
+      const targetName = activeWriteTextTarget.deviceName;
+      if (input) input.value = "";
+      closeWriteTextModal();
+      showToast(`✓ Sent text to ${targetName}`);
+    } else {
+      if (errBox) errBox.style.display = "flex";
+      if (errText) errText.textContent = res?.error || "Device unreachable";
+    }
+  } catch (err) {
+    if (errBox) errBox.style.display = "flex";
+    if (errText) errText.textContent = err.message || "Failed to write text";
+  } finally {
+    isWritingText = false;
+    if (input) input.disabled = false;
+    if (submitBtn) submitBtn.disabled = false;
+    if (pasteBtn) pasteBtn.disabled = false;
+    if (cancelBtn) cancelBtn.disabled = false;
+    if (submitText) submitText.textContent = "Write";
+    if (activeWriteTextTarget && input) {
+      input.focus();
+    }
+  }
+}
+
 function initModals() {
   const openAddDeviceModalBtn = document.getElementById("openAddDeviceModalBtn");
   const emptyAddDeviceBtn = document.getElementById("emptyAddDeviceBtn");
@@ -711,10 +814,69 @@ function initModals() {
     });
   }
 
+  // Write Text Modal Handlers
+  const writeTextModal = document.getElementById("writeTextModal");
+  const closeWriteTextModalBtn = document.getElementById("closeWriteTextModalBtn");
+  const cancelWriteTextBtn = document.getElementById("cancelWriteTextBtn");
+  const pasteWriteTextBtn = document.getElementById("pasteWriteTextBtn");
+  const writeTextModalForm = document.getElementById("writeTextModalForm");
+  const writeTextModalInput = document.getElementById("writeTextModalInput");
+
+  if (closeWriteTextModalBtn) closeWriteTextModalBtn.addEventListener("click", closeWriteTextModal);
+  if (cancelWriteTextBtn) cancelWriteTextBtn.addEventListener("click", closeWriteTextModal);
+
+  if (pasteWriteTextBtn) {
+    pasteWriteTextBtn.addEventListener("click", () => {
+      const clipText = clipboard.readText() || "";
+      if (!clipText) {
+        showToast("⚠️ PC clipboard has no text");
+        if (writeTextModalInput) writeTextModalInput.focus();
+        return;
+      }
+      if (writeTextModalInput) {
+        const start = writeTextModalInput.selectionStart ?? writeTextModalInput.value.length;
+        const end = writeTextModalInput.selectionEnd ?? writeTextModalInput.value.length;
+        const current = writeTextModalInput.value;
+        writeTextModalInput.value = current.slice(0, start) + clipText + current.slice(end);
+        const caret = start + clipText.length;
+        writeTextModalInput.setSelectionRange(caret, caret);
+        writeTextModalInput.focus();
+      }
+      const errBox = document.getElementById("writeTextErrorAlert");
+      if (errBox) errBox.style.display = "none";
+    });
+  }
+
+  if (writeTextModalForm) {
+    writeTextModalForm.addEventListener("submit", (e) => {
+      e.preventDefault();
+      submitWriteTextModal();
+    });
+  }
+
+  if (writeTextModalInput) {
+    writeTextModalInput.addEventListener("keydown", (e) => {
+      if ((e.ctrlKey || e.metaKey) && e.key === "Enter") {
+        e.preventDefault();
+        submitWriteTextModal();
+      }
+    });
+  }
+
+  if (writeTextModal) {
+    writeTextModal.addEventListener("click", (e) => {
+      if (e.target === writeTextModal) {
+        closeWriteTextModal();
+      }
+    });
+  }
+
   // Global Escape key
   window.addEventListener("keydown", (e) => {
     if (e.key === "Escape") {
-      if (jsonFormatModal && jsonFormatModal.style.display !== "none") {
+      if (writeTextModal && writeTextModal.style.display !== "none") {
+        closeWriteTextModal();
+      } else if (jsonFormatModal && jsonFormatModal.style.display !== "none") {
         closeJsonFormatModal();
       } else if (addDeviceModal && addDeviceModal.style.display !== "none") {
         closeAddDeviceModal();
@@ -728,6 +890,8 @@ module.exports = {
   closeAddDeviceModal,
   openJsonFormatModal,
   closeJsonFormatModal,
+  openWriteTextModal,
+  closeWriteTextModal,
   generatePairingPin,
   renderScanCandidates,
   startConfirmPairingSession,
