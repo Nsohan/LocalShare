@@ -52,3 +52,4 @@ Welcome to **LocalShare v1.2.0**! This release introduces **LAN Auto-Discovery &
 Found an issue or want to request a feature?
 - **Issues**: [GitHub Issues](https://github.com/Nsohan/LocalShare/issues)
 - **Repository**: [Nsohan/LocalShare](https://github.com/Nsohan/LocalShare)
+
