@@ -16,6 +16,7 @@ const fs = require("fs");
 const os = require("os");
 const logger = require("../config/logger");
 const { showDashboardWindow } = require("./windows/dashboard");
+const { showWriteTextModalWindow } = require("./windows/writeTextModal");
 const {
   getLocalIP,
   getAppIconPath,
@@ -682,10 +683,14 @@ function updateTrayMenu(sharedFiles = null) {
               enabled: Boolean(safeUrl),
               click: () => {
                 if (!safeUrl) return;
-                logger.info("Tray: Opening Write Text for device:", devName);
-                sendToDashboardWhenReady("devices:focus-write-text", {
-                  deviceId: device.id || "",
+                logger.info(
+                  "Tray: Opening standalone Write Text modal for device:",
+                  devName
+                );
+                showWriteTextModalWindow({
+                  deviceName: devName,
                   deviceUrl: safeUrl,
+                  theme: getConfig("theme"),
                 });
               },
             },

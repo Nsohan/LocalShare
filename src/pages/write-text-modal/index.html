@@ -1,0 +1,76 @@
+<!DOCTYPE html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>Write Text to Device</title>
+    <link rel="stylesheet" href="../dashboard/css/base.css" />
+    <link rel="stylesheet" href="../dashboard/css/modals.css" />
+    <link rel="stylesheet" href="./style.css" />
+  </head>
+  <body>
+    <div class="standalone-modal-shell">
+      <div class="modal-card">
+        <div class="modal-header">
+          <div class="modal-title-wrap">
+            <div class="modal-icon-badge">
+              <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                <path d="M12 20h9"></path>
+                <path d="M16.5 3.5a2.121 2.121 0 0 1 3 3L7 19l-4 1 1-4L16.5 3.5z"></path>
+              </svg>
+            </div>
+            <div>
+              <h3 class="modal-title">Write Text to Device</h3>
+              <span class="modal-subtitle" id="writeTextTargetLabel">Type text onto your phone</span>
+            </div>
+          </div>
+          <div class="modal-header-actions">
+            <button type="button" class="modal-close-btn" id="closeWriteTextModalBtn" title="Close">&times;</button>
+          </div>
+        </div>
+
+        <form class="modal-body" id="writeTextModalForm">
+          <div class="modal-field-group">
+            <label class="modal-field-label" for="writeTextModalInput">
+              <span>Text</span>
+            </label>
+            <textarea
+              id="writeTextModalInput"
+              class="modal-input write-text-textarea"
+              rows="4"
+              placeholder="Type or paste text to write on phone..."
+              autocomplete="off"
+            ></textarea>
+            <span class="modal-field-hint">Tip: Press <code>Ctrl+Enter</code> to write immediately.</span>
+          </div>
+
+          <div class="modal-error-alert" id="writeTextErrorAlert" style="display: none;">
+            <span class="error-dot">!</span>
+            <span id="writeTextErrorText">Could not send text to device.</span>
+          </div>
+
+          <div class="modal-actions write-text-modal-actions">
+            <button type="button" class="btn btn-secondary" id="cancelWriteTextBtn">Cancel</button>
+            <button type="button" class="btn btn-secondary" id="pasteWriteTextBtn" title="Paste from PC clipboard">
+              <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                <path d="M16 4h2a2 2 0 0 1 2 2v14a2 2 0 0 1-2 2H6a2 2 0 0 1-2-2V6a2 2 0 0 1 2-2h2"></path>
+                <rect x="8" y="2" width="8" height="4" rx="1" ry="1"></rect>
+              </svg>
+              <span>Paste</span>
+            </button>
+            <button type="submit" class="btn btn-primary" id="submitWriteTextBtn">
+              <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                <path d="M12 20h9"></path>
+                <path d="M16.5 3.5a2.121 2.121 0 0 1 3 3L7 19l-4 1 1-4L16.5 3.5z"></path>
+              </svg>
+              <span id="submitWriteTextBtnText">Write</span>
+            </button>
+          </div>
+        </form>
+      </div>
+    </div>
+
+    <script src="./script.js"></script>
+  </body>
+</html>
+

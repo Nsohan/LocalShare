@@ -30,7 +30,6 @@ const { generateQRCode, initConnect } = require("./js/connect");
 const {
   renderDevicesList,
   patchDeviceStatuses,
-  focusDeviceWriteInput,
   initDevices,
 } = require("./js/devices");
 const { scanAdbDevices, checkScrcpyStatus, initMirror } = require("./js/mirror");
@@ -66,31 +65,14 @@ setOnDeviceAdded(() => {
 // IPC Event Listeners
 // ==========================
 
-let pendingWriteFocusPayload = null;
-
 ipcRenderer.on("dashboard:switch-tab", (event, tab) => {
   switchView(tab);
-});
-
-ipcRenderer.on("devices:focus-write-text", (_event, payload) => {
-  switchView("devices");
-  if (!focusDeviceWriteInput(payload || {})) {
-    pendingWriteFocusPayload = payload || {};
-  } else {
-    pendingWriteFocusPayload = null;
-  }
 });
 
 ipcRenderer.on("dashboard:state-updated", (event, state) => {
   if (state) {
     Object.assign(currentState, state);
     renderDashboard();
-    if (
-      pendingWriteFocusPayload &&
-      focusDeviceWriteInput(pendingWriteFocusPayload)
-    ) {
-      pendingWriteFocusPayload = null;
-    }
   }
 });
 

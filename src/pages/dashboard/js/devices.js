@@ -569,32 +569,11 @@ function initDevices() {
   }
 }
 
-function focusDeviceWriteInput({ deviceId = "", deviceUrl = "" } = {}) {
-  const list = Array.isArray(currentState.devices) ? currentState.devices : [];
-  if (list.length === 0) return false;
-
-  const targetDevice =
-    list.find((d) => deviceId && d.id === deviceId) ||
-    list.find((d) => deviceUrl && sanitizeHttpUrl(d.url) === sanitizeHttpUrl(deviceUrl)) ||
-    list.find((d) => Boolean(sanitizeHttpUrl(d.url)));
-  if (!targetDevice) return false;
-
-  const safeUrl = sanitizeHttpUrl(targetDevice.url);
-  if (!safeUrl) return false;
-
-  const { openWriteTextModal } = require("./modals");
-  return openWriteTextModal({
-    deviceName: targetDevice.name || "Device",
-    deviceUrl: safeUrl,
-  });
-}
-
 module.exports = {
   escapeHtml,
   sanitizeHttpUrl,
   formatSubnetDisplay,
   renderDevicesList,
   patchDeviceStatuses,
-  focusDeviceWriteInput,
   initDevices,
 };

@@ -41,6 +41,7 @@ const {
   showDashboardWindow,
   getDashboardWindow,
 } = require("./windows/dashboard");
+const { closeWriteTextModalWindow } = require("./windows/writeTextModal");
 const scrcpyManager = require("./scrcpy");
 const lanScanner = require("./lanScanner");
 const {
@@ -1384,7 +1385,14 @@ if (!gotTheLock) {
 
   // Write text onto phone via GET /command?write=
   ipcMain.handle("devices:write-text", async (_event, payload = {}) => {
-    return writeTextToPhone(payload);
+    const res = await writeTextToPhone(payload);
+    if (res && res.success && payload?.notify) {
+      showAppNotification({
+        title: "Text Written to Device",
+        body: `Sent text to ${payload.deviceName || "device"}.`,
+      });
+    }
+    return res;
   });
 
   // Pick file(s) and upload sequentially to PhoneServer POST /files
@@ -1649,6 +1657,7 @@ if (!gotTheLock) {
     app.isQuiting = true;
     logger.info("App quitting...");
     destroyTrayMenuWindows();
+    closeWriteTextModalWindow();
     deviceWatcher?.stop();
     pairingManager.stopAll();
     scrcpyManager.stopAllSessions();
