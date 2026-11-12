@@ -70,6 +70,53 @@
         </div>
       </div>
 
+      <!-- Device Discovery & Auto-Connect -->
+      <div class="settings-group">
+        <h3 class="settings-group-title">Your Devices &amp; Auto-Discovery</h3>
+
+        <div class="setting-row">
+          <div class="setting-meta">
+            <label class="setting-title" for="setDeviceAutoConnect">Auto-Connect Saved Devices</label>
+            <span class="setting-desc">Monitor paired phones in the background and relocate them automatically if their IP changes</span>
+          </div>
+          <label class="toggle-switch">
+            <input type="checkbox" id="setDeviceAutoConnect" />
+            <span class="slider"></span>
+          </label>
+        </div>
+
+        <div class="setting-row">
+          <div class="setting-meta">
+            <label class="setting-title" for="setDeviceAutoScanNewNetworks">Auto-Scan Unfamiliar Networks</label>
+            <span class="setting-desc">Allow automatic subnet relocation scans on new Wi-Fi networks (e.g., office); disable to auto-scan only previously seen networks</span>
+          </div>
+          <label class="toggle-switch">
+            <input type="checkbox" id="setDeviceAutoScanNewNetworks" />
+            <span class="slider"></span>
+          </label>
+        </div>
+
+        <div class="setting-row">
+          <div class="setting-meta">
+            <label class="setting-title" for="setDeviceScanPort">Phone Companion Port</label>
+            <span class="setting-desc">Default HTTP port used when scanning and pairing phones on the LAN (Default: 8000)</span>
+          </div>
+          <div class="setting-input-wrap">
+            <input type="number" id="setDeviceScanPort" min="1" max="65535" class="input-text" />
+          </div>
+        </div>
+
+        <div class="setting-row">
+          <div class="setting-meta">
+            <label class="setting-title" for="setDeviceProbePath">Device Liveness Path</label>
+            <span class="setting-desc">HTTP path probed during auto-discovery and health checks (Default: /alive)</span>
+          </div>
+          <div class="setting-input-wrap">
+            <input type="text" id="setDeviceProbePath" maxlength="64" placeholder="/alive" class="input-text input-text-wide" />
+          </div>
+        </div>
+      </div>
+
       <!-- Storage & History -->
       <div class="settings-group">
         <h3 class="settings-group-title">Storage & History</h3>

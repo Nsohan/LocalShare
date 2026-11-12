@@ -123,6 +123,10 @@ input:checked + .slider:before {
   border-color: var(--primary);
 }
 
+.input-text-wide {
+  width: 150px;
+}
+
 .select-dropdown {
   background: var(--surface-input);
   border: 1px solid var(--border-subtle);

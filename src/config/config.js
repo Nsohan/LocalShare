@@ -47,6 +47,11 @@ const DEFAULT_CONFIG = {
     record: false,
     autoReconnect: true,
   },
+  deviceScanPort: 8000,
+  deviceProbePath: "/alive",
+  deviceAutoConnect: true,
+  deviceAutoScanNewNetworks: true,
+  knownNetworkSignatures: [],
 };
 
 /**

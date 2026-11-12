@@ -15,10 +15,10 @@ LocalShare turns your computer into a lightweight, high-speed local sharing hub.
 - **🖥️ Unified Desktop Dashboard**:
   - **Files & Sharing**: Interactive drag-and-drop zone, file category badges, and quick links.
   - **Connect & QR**: Native high-resolution QR code generator for instant phone camera scan-to-connect.
-  - **📱 Your Devices**: Add and manage paired local mobile devices with 6-digit PIN verification, real-time 1-second HTTP polling, and latency ping monitoring.
+  - **📱 Your Devices**: Auto-discover Tasker/mobile companion servers on your active LAN (`/alive`), pair via 6-digit **Confirm on Phone** (`/pair` with Connect/Cancel), monitor live Online/Checking/Offline status, latency, battery level, and sound mode, and automatically relocate devices when Wi-Fi IPs change.
   - **🪞 Screen Mirror & Control (scrcpy)**: Ultra-low latency Android screen mirroring, mouse/keyboard input, audio streaming, Wi-Fi TCP/IP mode switching, recording to MP4, and customizable resolution/bitrate presets.
-  - **API Explorer**: Built-in REST API reference with copyable `curl` examples and pairing specifications.
-  - **Settings**: Windows autostart toggle, notifications mute, custom port selector, and theme switcher.
+  - **API Explorer**: Built-in REST API reference with copyable `curl` examples.
+  - **Settings**: Windows autostart toggle, notifications mute, custom server port selector, theme switcher, and device auto-discovery / companion probe settings.
   - **About**: Diagnostic runtime versions (Electron, Node.js) and operating system info.
 - **📱 Responsive Mobile Web Client**:
   - Clean, touch-friendly dark interface matching the desktop app.
@@ -95,15 +95,14 @@ npm run package
    - A Windows desktop notification will notify you.
    - Files are saved directly to `Downloads\LocalShare\` and listed under the dashboard's **"Received from Mobile"** tab.
 
-### 3. Pairing Local Devices ("Your Devices")
+### 3. Pairing & Tracking Local Devices ("Your Devices")
 1. Open the dashboard and navigate to **"Your Devices"** in the sidebar.
 2. Click **"Add Device"** (or press the **+** button).
-3. Enter your mobile or target device's local address (e.g., `192.168.1.4:8000`).
-4. Note the generated **6-digit pairing key** (or click to refresh a new one).
-5. Enter the 6-digit key into your phone / device server.
-6. The dashboard automatically polls your device every 1 second (`GET /pair?key=...` or `/status`).
-7. Once verified, the device is instantly paired, displaying connection status, real-time ping latency, and quick browser open links.
-8. Click **"(?) JSON Format"** in the pairing dialog anytime to view the expected JSON API format and sample curl commands.
+3. LocalShare scans your active local subnet on port `8000` (`GET /alive`) and lists discovered phones with their model name, IP, battery level, and sound mode.
+4. Click your phone in the scan list. LocalShare generates a **6-digit verification code** and sends `GET /pair?key=<code>&pc=<PC-NAME>` every 1 second (up to 60 seconds).
+5. On your phone, verify that the 6-digit code matches the PC screen and tap **Connect** (or tap **Cancel** to deny immediately).
+6. Once accepted, the device appears in **Your Devices** with live status (`Connected` / `Checking...` / `Offline`), ping latency, battery level, and sound mode. If your phone gets a new IP on another Wi-Fi network or after sleep/wake, LocalShare automatically relocates and updates it.
+7. Manual fallback: expand **"Manual IP + PIN (legacy)"** inside the Add Device modal to pair directly by IP and port, or click **"(?) JSON Format"** to view the phone endpoint specification.
 
 ### 4. Sharing Directly from Windows Explorer
 1. In Windows File Explorer, right-click any file.
@@ -141,25 +140,54 @@ curl -F "files=@my-document.pdf" http://<PC-IP>:5199/api/upload
 curl http://<PC-IP>:5199/api/shared-file
 ```
 
-### 📱 Device Pairing Protocol ("Your Devices")
+### 📱 Device Discovery & Pairing Protocol ("Your Devices")
 
-When pairing with external mobile or local device servers (e.g., `http://192.168.1.4:8000`), LocalShare automatically polls the device's endpoint every 1 second:
+Your phone companion (for example, Tasker HTTP Request profiles on port `8000`) implements two lightweight HTTP GET endpoints:
 
-```http
-GET http://192.168.1.4:8000/pair?key=482910
-GET http://192.168.1.4:8000/status?pairingKey=482910
-```
-
-#### Expected Success Response (`200 OK`):
+#### 1. Liveness & Auto-Discovery (`GET /alive`, Port `8000`)
+Used by **"Find My Phone"**, background liveness polling, and cross-network IP relocation. Must return a `200 OK` JSON object (max 4 KB, no redirects):
 ```json
 {
-  "success": true,
-  "paired": true,
-  "deviceName": "Galaxy S24 Ultra",
-  "deviceType": "mobile",
-  "ip": "192.168.1.4",
-  "port": 8000
+  "phoneModel": "CPH2487",
+  "batteryLevel": 78,
+  "mode": "General",
+  "deviceId": "optional-stable-id"
 }
+```
+- `phoneModel` (required): non-empty string (1–64 chars).
+- `batteryLevel`, `mode`, `deviceId` (optional): rendered live on the device card and used for stable device matching across IP changes.
+
+#### 2. Confirm-on-Phone Pairing (`GET /pair?key=482910&pc=SOHAN-PC`, Port `8000`)
+LocalShare sends `key` and `pc` query parameters (plus headers `X-Pairing-Key` and `X-Device-Type: desktop`) every 1 second for up to 60 seconds:
+
+- **Waiting for user tap (`202 Accepted`)**:
+  ```json
+  { "status": "pending", "message": "Waiting for confirmation on phone" }
+  ```
+- **User tapped Connect (`200 OK`)**:
+  ```json
+  {
+    "success": true,
+    "paired": true,
+    "status": "accepted",
+    "phoneModel": "CPH2487",
+    "batteryLevel": 78,
+    "mode": "General",
+    "deviceId": "optional-stable-id",
+    "token": "optional-shared-token"
+  }
+  ```
+- **User tapped Cancel (`403 Forbidden`)**:
+  ```json
+  { "status": "denied", "message": "Pairing denied on phone" }
+  ```
+
+> **Optional `X-LocalShare-Token` header:** If `/pair` returns a non-empty `token` string on acceptance, LocalShare saves it with the device record and includes `X-LocalShare-Token: <token>` on background fast-path `/alive` checks to that paired phone's origin. Discovery and cross-network relocation scans omit the token so it is never sent to unknown LAN hosts.
+
+#### Quick PowerShell Verification
+```powershell
+Invoke-WebRequest -Uri "http://<PHONE-IP>:8000/alive" -UseBasicParsing
+Invoke-WebRequest -Uri "http://<PHONE-IP>:8000/pair?key=482910&pc=$env:COMPUTERNAME" -UseBasicParsing
 ```
 
 ---
@@ -168,10 +196,13 @@ GET http://192.168.1.4:8000/status?pairingKey=482910
 
 ```
 LocalShare/
-├── build/
-│   └── icon.ico             # Application icon for packaging & tray
+├── bin/
+│   └── scrcpy/              # Bundled scrcpy & adb binaries for Screen Mirror
+├── doc/
+│   └── RELEASE_GUIDE.md
 ├── public/
 │   ├── favicon.ico
+│   ├── icon.png
 │   └── index.html           # Web client redirect
 ├── src/
 │   ├── config/
@@ -179,17 +210,19 @@ LocalShare/
 │   │   └── logger.js        # Daily rotating logger
 │   ├── main/
 │   │   ├── main.js          # Main Electron process, IPC hub, server supervisor
+│   │   ├── lanScanner.js    # Adapter selection, subnet host enumeration, bounded /alive probe
+│   │   ├── devicePairing.js # Confirm-on-phone pairing session & device identity/dedup helpers
+│   │   ├── deviceWatcher.js # Background liveness state machine & cross-network IP relocation
+│   │   ├── scrcpy.js        # Screen Mirror & ADB wireless/USB controller
 │   │   ├── tray.js          # Windows System Tray menu manager
-│   │   ├── utils.js         # Local IPv4 network discovery & sanitization
+│   │   ├── utils.js         # Local IPv4 network discovery & filename sanitization
 │   │   └── windows/
-│   │       ├── dashboard.js # Unified dashboard window manager
-│   │       ├── qrcode.js    # QR Code modal
-│   │       └── settings.js  # Settings window manager
+│   │       └── dashboard.js # Unified dashboard window manager
 │   ├── pages/
-│   │   ├── dashboard/       # Decentralized Desktop Dashboard
-│   │   │   ├── views/       # HTML section partials (files, connect, devices, modals...)
-│   │   │   ├── css/         # Modular section stylesheets (base, layout, devices...)
-│   │   │   ├── js/          # Section controller scripts (state, files, modals...)
+│   │   ├── dashboard/       # Desktop Dashboard UI
+│   │   │   ├── views/       # HTML section partials (files, connect, devices, mirror, api, settings, about, modals/)
+│   │   │   ├── css/         # Modular section stylesheets
+│   │   │   ├── js/          # Section controller scripts
 │   │   │   ├── index.html   # Main dashboard layout skeleton
 │   │   │   ├── style.css    # Unified stylesheet aggregator
 │   │   │   └── script.js    # Section orchestrator & IPC coordinator
@@ -197,11 +230,14 @@ LocalShare/
 │   └── server/
 │       ├── server.js        # Express HTTP server process (runs in child process)
 │       ├── routes.js        # Express routes
+│       ├── utils.js         # Server network helpers
 │       └── controllers/
 │           ├── fileController.js # Multer upload & download streaming
 │           └── apiController.js  # API data handlers
+├── icon.png
 ├── installer.nsh            # NSIS installer config (SendTo context menu setup)
-└── package.json
+├── package.json
+└── release.ps1
 ```
 
 ---
@@ -213,11 +249,16 @@ Application settings are stored in your user profile:
 - **Logs**: `%APPDATA%\LocalShare\logs\localshare-YYYY-MM-DD.log`
 
 Configurable options include:
-- `autostart`: Start LocalShare automatically on Windows login.
-- `openDashboardAtStart`: Show the dashboard window on launch or start silently in the tray.
-- `notifications`: Enable or mute Windows desktop alerts.
-- `port`: Port used by the HTTP server (default: `5199`).
+- `autostart`: Start LocalShare automatically on Windows login (`true`).
+- `openDashboardAtStart`: Show the dashboard window on launch or start silently in the tray (`true`).
+- `notifications`: Enable or mute Windows desktop alerts (`true`).
+- `port`: Port used by the HTTP file-sharing server (`5199`).
 - `theme`: UI theme (`dark`, `light`, `system`).
+- `deviceAutoConnect`: Monitor paired phones in the background and relocate them if their IP changes (`true`).
+- `deviceAutoScanNewNetworks`: Automatically scan unfamiliar subnets during device relocation; turn off to auto-scan only previously seen networks (`true`).
+- `deviceScanPort`: Default port used for phone `/alive` discovery and `/pair` confirmation (`8000`).
+- `deviceProbePath`: Default HTTP path probed on phones during discovery and health checks (`/alive`).
+- `knownNetworkSignatures`: Adapter/subnet signatures remembered from previous successful connections/pairings.
 
 ---
 

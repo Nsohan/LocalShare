@@ -11,7 +11,7 @@
         </div>
         <div>
           <h3 class="modal-title">Device Server API Spec</h3>
-          <span class="modal-subtitle">Expected JSON formats for pairing with LocalShare</span>
+          <span class="modal-subtitle">Tasker endpoints on port 8000 for LocalShare</span>
         </div>
       </div>
       <div class="modal-header-actions">
@@ -23,37 +23,66 @@
       <div class="api-poll-overview">
         <div class="api-endpoint-badge">
           <span class="method-tag">HTTP GET</span>
-          <span class="endpoint-text">/?key=&lt;6-digit&gt;&amp;pc=&lt;hostname&gt;</span>
+          <span class="endpoint-text">:8000/alive &amp; :8000/pair?key=&lt;6-digit&gt;&amp;pc=&lt;hostname&gt;</span>
         </div>
         <p class="api-spec-explainer">
-          LocalShare desktop polls your mobile server every <strong>1 second</strong>. Send the header <code>X-Pairing-Key: &lt;6-digit&gt;</code> and query param <code>?key=...</code>.
+          Discovery probes <code>GET /alive</code> on your LAN subnet. First pairing polls <code>GET /pair?key=...&amp;pc=...</code> (plus <code>X-Pairing-Key</code> header) every <strong>1 second</strong> for up to 60 seconds.
         </p>
       </div>
 
-      <!-- 1. Success Response -->
+      <!-- 1. /alive Discovery Response -->
       <div class="api-help-code-group">
         <div class="code-title-row">
-          <span class="code-tag success">1. Success Response (Key Accepted) &bull; 200 OK</span>
+          <span class="code-tag success">1. Discovery &amp; Status (GET /alive) &bull; 200 OK</span>
+          <button type="button" class="btn-copy-code" id="copyAliveJsonBtn" title="Copy JSON">Copy JSON</button>
+        </div>
+        <pre class="api-json-pre"><code id="codeAliveJson">{
+  "phoneModel": "CPH2487",
+  "batteryLevel": 81,
+  "mode": "General",
+  "deviceId": "dev_optional_stable_id"
+}</code></pre>
+      </div>
+
+      <!-- 2. /pair Accepted Response -->
+      <div class="api-help-code-group">
+        <div class="code-title-row">
+          <span class="code-tag success">2. Pair Accepted (GET /pair) &bull; 200 OK</span>
           <button type="button" class="btn-copy-code" id="copySuccessJsonBtn" title="Copy JSON">Copy JSON</button>
         </div>
         <pre class="api-json-pre"><code id="codeSuccessJson">{
   "success": true,
   "status": "connected",
-  "deviceName": "My Phone",
+  "phoneModel": "CPH2487",
+  "batteryLevel": 81,
+  "mode": "General",
   "message": "Device paired successfully"
 }</code></pre>
       </div>
 
-      <!-- 2. Pending Response -->
+      <!-- 3. /pair Pending Response -->
       <div class="api-help-code-group">
         <div class="code-title-row">
-          <span class="code-tag pending">2. Pending Response (Waiting for Key) &bull; 202 or 200</span>
+          <span class="code-tag pending">3. Pending Confirmation &bull; 202 Accepted</span>
           <button type="button" class="btn-copy-code" id="copyPendingJsonBtn" title="Copy JSON">Copy JSON</button>
         </div>
         <pre class="api-json-pre"><code id="codePendingJson">{
   "success": false,
   "status": "pending",
-  "message": "Waiting for key entry on phone"
+  "message": "Waiting for confirmation on phone"
+}</code></pre>
+      </div>
+
+      <!-- 4. /pair Denied Response -->
+      <div class="api-help-code-group">
+        <div class="code-title-row">
+          <span class="code-tag denied">4. Denied on Phone &bull; 403 Forbidden</span>
+          <button type="button" class="btn-copy-code" id="copyDeniedJsonBtn" title="Copy JSON">Copy JSON</button>
+        </div>
+        <pre class="api-json-pre"><code id="codeDeniedJson">{
+  "success": false,
+  "status": "denied",
+  "message": "Pairing cancelled on phone"
 }</code></pre>
       </div>
 
@@ -64,7 +93,7 @@
           <line x1="12" y1="16" x2="12" y2="12"></line>
           <line x1="12" y1="8" x2="12.01" y2="8"></line>
         </svg>
-        <span>Once your server returns <code>"success": true</code>, LocalShare instantly connects your device.</span>
+        <span>Returning HTTP <code>403</code> or <code>"status": "denied"</code> stops PC polling immediately.</span>
       </div>
 
       <div class="modal-actions" style="margin-top: 6px;">

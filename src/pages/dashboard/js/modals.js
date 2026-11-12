@@ -1,11 +1,15 @@
 const { ipcRenderer, clipboard } = require("electron");
 const { currentState, showToast } = require("./state");
+const { escapeHtml, sanitizeHttpUrl } = require("./devices");
 
 let currentPairingPin = "123456";
 let pairingPollInterval = null;
 let pairingPollAttempt = 0;
 let isPairing = false;
 let onDeviceAddedCallback = null;
+let activeConfirmSession = null;
+let lastScanCandidates = [];
+let scanInProgress = false;
 
 function setOnDeviceAdded(callback) {
   onDeviceAddedCallback = callback;
@@ -32,8 +36,274 @@ function generatePairingPin() {
   return pinNum;
 }
 
-function openAddDeviceModal() {
-  const addDeviceModal = document.getElementById("addDeviceModal");
+function getSubnetHintAddresses() {
+  const ip = currentState?.serverInfo?.ip;
+  if (typeof ip === "string") {
+    const parts = ip.split(".");
+    if (parts.length === 4) {
+      const prefix = `${parts[0]}.${parts[1]}.${parts[2]}`;
+      return {
+        placeholder: `${prefix}.10:8000`,
+        hintText: `${prefix}.x:8000`,
+      };
+    }
+  }
+  return {
+    placeholder: "192.168.1.10:8000",
+    hintText: "192.168.1.x:8000",
+  };
+}
+
+function showDiscoverView() {
+  const discoverView = document.getElementById("discoverDevicesView");
+  const confirmView = document.getElementById("confirmPhoneView");
+  if (discoverView) discoverView.style.display = "block";
+  if (confirmView) confirmView.style.display = "none";
+}
+
+function showConfirmView() {
+  const discoverView = document.getElementById("discoverDevicesView");
+  const confirmView = document.getElementById("confirmPhoneView");
+  if (discoverView) discoverView.style.display = "none";
+  if (confirmView) confirmView.style.display = "flex";
+}
+
+function setManualExpanded(expanded) {
+  const form = document.getElementById("addDeviceForm");
+  const toggleBtn = document.getElementById("toggleManualEntryBtn");
+  if (form) form.style.display = expanded ? "flex" : "none";
+  if (toggleBtn) toggleBtn.setAttribute("aria-expanded", expanded ? "true" : "false");
+}
+
+function renderScanCandidates(candidates = []) {
+  const listEl = document.getElementById("scanCandidatesList");
+  if (!listEl) return;
+
+  lastScanCandidates = Array.isArray(candidates) ? candidates : [];
+  listEl.innerHTML = "";
+
+  if (lastScanCandidates.length === 0) {
+    const empty = document.createElement("div");
+    empty.className = "scan-empty-hint";
+    empty.textContent =
+      "No phones answered /alive on this LAN. Ensure Tasker HTTP server is listening on port 8000 (office guest Wi-Fi may block device-to-device traffic), or add manually below.";
+    listEl.appendChild(empty);
+    return;
+  }
+
+  lastScanCandidates.forEach((cand) => {
+    const row = document.createElement("div");
+    row.className = "scan-candidate-row";
+
+    const title = escapeHtml(cand.model || `Phone (${cand.ip})`);
+    const addr = escapeHtml(`${cand.ip}:${cand.port || 8000}`);
+    const batBadge =
+      typeof cand.battery === "number"
+        ? `<span class="scan-badge">Battery ${escapeHtml(cand.battery)}%</span>`
+        : "";
+    const modeBadge = cand.mode
+      ? `<span class="scan-badge">${escapeHtml(cand.mode)}</span>`
+      : "";
+    const latBadge =
+      typeof cand.latencyMs === "number"
+        ? `<span class="scan-badge">${escapeHtml(Math.round(cand.latencyMs))} ms</span>`
+        : "";
+    const pairedBadge = cand.alreadyPaired
+      ? `<span class="scan-badge paired">Already paired</span>`
+      : "";
+
+    row.innerHTML = `
+      <div class="scan-candidate-meta">
+        <span class="scan-candidate-title">${title}</span>
+        <span class="scan-candidate-sub">${addr}</span>
+        <div class="scan-candidate-badges">${batBadge}${modeBadge}${latBadge}${pairedBadge}</div>
+      </div>
+      <button type="button" class="btn btn-sm btn-primary" data-action="pair-candidate">
+        ${cand.alreadyPaired ? "Re-pair" : "Connect"}
+      </button>
+    `;
+
+    const btn = row.querySelector('[data-action="pair-candidate"]');
+    if (btn) {
+      btn.addEventListener("click", () => {
+        const nameInput = document.getElementById("deviceNameInput");
+        const customName = nameInput ? nameInput.value.trim() : "";
+        startConfirmPairingSession({
+          ip: cand.ip,
+          port: cand.port || 8000,
+          model: cand.model || null,
+          customName,
+        });
+      });
+    }
+
+    listEl.appendChild(row);
+  });
+}
+
+async function runModalScan() {
+  if (scanInProgress) return;
+  const listEl = document.getElementById("scanCandidatesList");
+  const subnetEl = document.getElementById("scanSubnetLabel");
+  const scanBtn = document.getElementById("rescanPhonesBtn");
+  const scanBtnText = document.getElementById("rescanPhonesBtnText");
+
+  scanInProgress = true;
+  if (scanBtn) scanBtn.disabled = true;
+  if (scanBtnText) scanBtnText.textContent = "Scanning...";
+  if (subnetEl) {
+    const netLabel = currentState?.serverInfo?.cidr || currentState?.serverInfo?.ip || "local subnet";
+    subnetEl.textContent = `Scanning ${netLabel} (:8000/alive)...`;
+  }
+  if (listEl) {
+    listEl.innerHTML = '<div class="scan-empty-hint">Searching local network for phones...</div>';
+  }
+
+  try {
+    const res = await ipcRenderer.invoke("devices:scan", {});
+    if (subnetEl) {
+      if (res?.lan?.cidr) {
+        subnetEl.textContent = `Subnet ${res.lan.cidr} • scanned ${res.scanned || 0} hosts (${res.tookMs || 0}ms)`;
+      } else {
+        subnetEl.textContent = "No active private LAN interface detected";
+      }
+    }
+    renderScanCandidates(res?.candidates || []);
+  } catch (err) {
+    if (subnetEl) subnetEl.textContent = "Network scan error";
+    if (listEl) {
+      listEl.innerHTML = "";
+      const errDiv = document.createElement("div");
+      errDiv.className = "scan-empty-hint";
+      errDiv.textContent = `Scan failed: ${err.message}`;
+      listEl.appendChild(errDiv);
+    }
+  } finally {
+    scanInProgress = false;
+    if (scanBtn) scanBtn.disabled = false;
+    if (scanBtnText) scanBtnText.textContent = "Scan Network";
+  }
+}
+
+async function cancelActiveConfirmSession() {
+  const session = activeConfirmSession;
+  activeConfirmSession = null;
+  if (session && session.attemptId) {
+    try {
+      await ipcRenderer.invoke("devices:pair-cancel", {
+        attemptId: session.attemptId,
+      });
+    } catch {
+      // Ignore cancel cleanup errors
+    }
+  }
+}
+
+async function startConfirmPairingSession({ ip, port = 8000, model = null, customName = "" }) {
+  await cancelActiveConfirmSession();
+
+  const titleEl = document.getElementById("confirmPhoneTitle");
+  const subEl = document.getElementById("confirmPhoneSubtitle");
+  const codeEl = document.getElementById("confirmCodeDigits");
+  const targetEl = document.getElementById("confirmPhoneTarget");
+  const statusEl = document.getElementById("confirmPhoneStatusText");
+  const errBox = document.getElementById("confirmPhoneErrorAlert");
+  const retryBtn = document.getElementById("retryConfirmPairingBtn");
+
+  if (titleEl) titleEl.textContent = "Confirm on your phone";
+  if (subEl) subEl.textContent = "Check that this 6-digit code matches the notification on your phone, then tap Connect.";
+  if (targetEl) targetEl.textContent = `${model || "Phone"} (${ip}:${port})`;
+  if (statusEl) statusEl.textContent = "Sending pairing request...";
+  if (errBox) errBox.style.display = "none";
+  if (retryBtn) retryBtn.style.display = "none";
+
+  showConfirmView();
+
+  try {
+    const startRes = await ipcRenderer.invoke("devices:pair-start", {
+      ip,
+      port,
+      model,
+      customName,
+    });
+    activeConfirmSession = {
+      attemptId: startRes.attemptId,
+      code: startRes.code,
+      ip,
+      port,
+      model,
+      customName,
+    };
+    if (codeEl) codeEl.textContent = startRes.code || "------";
+  } catch (err) {
+    if (errBox) {
+      errBox.style.display = "flex";
+      const errText = document.getElementById("confirmPhoneErrorText");
+      if (errText) errText.textContent = err.message || "Could not start pairing";
+    }
+    if (retryBtn) retryBtn.style.display = "inline-flex";
+  }
+}
+
+function handlePairProgress(progress) {
+  if (!progress || !activeConfirmSession || progress.attemptId !== activeConfirmSession.attemptId) {
+    return;
+  }
+
+  const titleEl = document.getElementById("confirmPhoneTitle");
+  const statusEl = document.getElementById("confirmPhoneStatusText");
+  const errBox = document.getElementById("confirmPhoneErrorAlert");
+  const errText = document.getElementById("confirmPhoneErrorText");
+  const retryBtn = document.getElementById("retryConfirmPairingBtn");
+
+  if (progress.status === "pending") {
+    if (statusEl) statusEl.textContent = progress.message || "Waiting for confirmation on phone...";
+    return;
+  }
+
+  if (progress.status === "accepted") {
+    const pairedName = progress.device?.name || activeConfirmSession.model || "Device";
+    activeConfirmSession = null;
+    if (onDeviceAddedCallback) {
+      onDeviceAddedCallback(currentState.devices || []);
+    }
+    showToast(`✓ "${pairedName}" connected successfully!`);
+    closeAddDeviceModal();
+    return;
+  }
+
+  // Final failure states: denied / timeout / error
+  const lastParams = { ...activeConfirmSession };
+  activeConfirmSession = null;
+  activeConfirmSession = {
+    ip: lastParams.ip,
+    port: lastParams.port,
+    model: lastParams.model,
+    customName: lastParams.customName,
+    attemptId: null,
+  };
+
+  if (titleEl) {
+    titleEl.textContent =
+      progress.status === "denied"
+        ? "Denied on phone"
+        : progress.status === "timeout"
+          ? "No response from phone"
+          : "Pairing failed";
+  }
+  if (statusEl) statusEl.textContent = "Pairing stopped.";
+  if (errBox) errBox.style.display = "flex";
+  if (errText) {
+    errText.textContent =
+      progress.message ||
+      (progress.status === "denied"
+        ? "Pairing was cancelled on your phone."
+        : "No confirmation received from phone.");
+  }
+  if (retryBtn) retryBtn.style.display = "inline-flex";
+}
+
+function resetManualFormUi() {
   const deviceUrlInput = document.getElementById("deviceUrlInput");
   const deviceNameInput = document.getElementById("deviceNameInput");
   const modalErrorAlert = document.getElementById("modalErrorAlert");
@@ -41,11 +311,18 @@ function openAddDeviceModal() {
   const startPairingBtn = document.getElementById("startPairingBtn");
   const pairingBtnSpinner = document.getElementById("pairingBtnSpinner");
   const startPairingBtnText = document.getElementById("startPairingBtnText");
+  const manualUrlHint = document.getElementById("manualUrlHint");
+
+  const { placeholder, hintText } = getSubnetHintAddresses();
 
   generatePairingPin();
   if (deviceUrlInput) {
     deviceUrlInput.value = "";
     deviceUrlInput.disabled = false;
+    deviceUrlInput.placeholder = placeholder;
+  }
+  if (manualUrlHint) {
+    manualUrlHint.textContent = `Enter your phone's local IP and port (e.g. ${hintText})`;
   }
   if (deviceNameInput) {
     deviceNameInput.value = "";
@@ -56,30 +333,35 @@ function openAddDeviceModal() {
   if (startPairingBtn) startPairingBtn.disabled = false;
   if (pairingBtnSpinner) pairingBtnSpinner.style.display = "none";
   if (startPairingBtnText) startPairingBtnText.textContent = "Start Pairing";
-  isPairing = false;
+}
 
+function stopManualPollLoop() {
   if (pairingPollInterval) {
     clearTimeout(pairingPollInterval);
     clearInterval(pairingPollInterval);
     pairingPollInterval = null;
   }
+  isPairing = false;
+}
+
+function openAddDeviceModal() {
+  const addDeviceModal = document.getElementById("addDeviceModal");
+  stopManualPollLoop();
+  cancelActiveConfirmSession();
+  resetManualFormUi();
+  showDiscoverView();
+  setManualExpanded(false);
 
   if (addDeviceModal) {
     addDeviceModal.style.display = "flex";
-    setTimeout(() => {
-      if (deviceUrlInput) deviceUrlInput.focus();
-    }, 80);
+    runModalScan();
   }
 }
 
 function closeAddDeviceModal() {
   const addDeviceModal = document.getElementById("addDeviceModal");
-  if (pairingPollInterval) {
-    clearTimeout(pairingPollInterval);
-    clearInterval(pairingPollInterval);
-    pairingPollInterval = null;
-  }
-  isPairing = false;
+  stopManualPollLoop();
+  cancelActiveConfirmSession();
   if (addDeviceModal) addDeviceModal.style.display = "none";
 }
 
@@ -111,25 +393,21 @@ async function startPairingWorkflow(rawUrl, customName) {
   const pollingAttemptChip = document.getElementById("pollingAttemptChip");
   const pollingUrlChip = document.getElementById("pollingUrlChip");
 
-  let cleanUrl = rawUrl ? rawUrl.trim() : "";
-  if (!cleanUrl) {
-    if (modalErrorAlert) {
+  const { hintText } = getSubnetHintAddresses();
+  const cleanUrl = sanitizeHttpUrl(rawUrl);
+
+  if (!rawUrl || !rawUrl.trim()) {
+    if (modalErrorAlert && modalErrorText) {
       modalErrorAlert.style.display = "flex";
-      modalErrorText.textContent = "Please enter your device's server URL (e.g. 192.168.1.4:8000)";
+      modalErrorText.textContent = `Please enter your device's server URL (e.g. ${hintText})`;
     }
     return;
   }
 
-  if (!/^https?:\/\//i.test(cleanUrl)) {
-    cleanUrl = `http://${cleanUrl}`;
-  }
-
-  try {
-    new URL(cleanUrl);
-  } catch (e) {
-    if (modalErrorAlert) {
+  if (!cleanUrl) {
+    if (modalErrorAlert && modalErrorText) {
       modalErrorAlert.style.display = "flex";
-      modalErrorText.textContent = "Invalid URL format. Example: 192.168.1.4:8000";
+      modalErrorText.textContent = `Invalid URL format. Example: ${hintText}`;
     }
     return;
   }
@@ -146,11 +424,21 @@ async function startPairingWorkflow(rawUrl, customName) {
 
   if (pollingStatusCard) {
     pollingStatusCard.style.display = "flex";
-    pollingStatusTitle.textContent = "Connecting to device server...";
-    pollingStatusSubtitle.textContent = `Waiting for 6-digit key (${currentPairingPin}) on phone...`;
-    pollingAttemptChip.textContent = "Attempt #1";
-    pollingUrlChip.textContent = cleanUrl.replace(/^https?:\/\//i, "");
+    if (pollingStatusTitle) pollingStatusTitle.textContent = "Connecting to device server...";
+    if (pollingStatusSubtitle) {
+      pollingStatusSubtitle.textContent = `Waiting for 6-digit key (${currentPairingPin}) on phone...`;
+    }
+    if (pollingAttemptChip) pollingAttemptChip.textContent = "Attempt #1";
+    if (pollingUrlChip) pollingUrlChip.textContent = cleanUrl.replace(/^https?:\/\//i, "");
   }
+
+  const restoreManualButtons = () => {
+    if (deviceUrlInput) deviceUrlInput.disabled = false;
+    if (deviceNameInput) deviceNameInput.disabled = false;
+    if (startPairingBtn) startPairingBtn.disabled = false;
+    if (pairingBtnSpinner) pairingBtnSpinner.style.display = "none";
+    if (startPairingBtnText) startPairingBtnText.textContent = "Start Pairing";
+  };
 
   async function pollStep() {
     if (!isPairing) return;
@@ -165,29 +453,30 @@ async function startPairingWorkflow(rawUrl, customName) {
         pairingKey: currentPairingPin,
       });
 
+      if (!isPairing) return;
+
       if (result && result.connected) {
-        if (pairingPollInterval) {
-          clearInterval(pairingPollInterval);
-          pairingPollInterval = null;
-        }
-        isPairing = false;
+        stopManualPollLoop();
 
         const parsedUrl = new URL(cleanUrl);
         const autoName =
+          customName?.trim() ||
+          result.phoneModel ||
           result.deviceName ||
-          customName ||
           `Phone (${parsedUrl.hostname})`;
 
         const newDevice = {
-          id: Date.now().toString(),
           name: autoName,
+          model: result.phoneModel || null,
+          deviceId: result.deviceId || null,
           url: cleanUrl,
           ip: parsedUrl.hostname,
-          port: parsedUrl.port || "80",
+          port: Number(parsedUrl.port) || 8000,
           key: currentPairingPin,
-          status: "online",
+          token: result.token || undefined,
+          battery: result.battery ?? null,
+          mode: result.mode ?? null,
           pairedAt: new Date().toISOString(),
-          lastSeen: new Date().toISOString(),
         };
 
         const saveRes = await ipcRenderer.invoke("devices:save", newDevice);
@@ -203,6 +492,17 @@ async function startPairingWorkflow(rawUrl, customName) {
         return;
       }
 
+      if (result && (result.denied || result.final)) {
+        stopManualPollLoop();
+        restoreManualButtons();
+        if (pollingStatusCard) pollingStatusCard.style.display = "none";
+        if (modalErrorAlert && modalErrorText) {
+          modalErrorAlert.style.display = "flex";
+          modalErrorText.textContent = result.message || "Pairing denied on phone";
+        }
+        return;
+      }
+
       if (result && result.message && pollingStatusSubtitle) {
         pollingStatusSubtitle.textContent = result.message;
       }
@@ -213,7 +513,7 @@ async function startPairingWorkflow(rawUrl, customName) {
     }
   }
 
-  // Sequential polling loop - awaits each step (allowing time for mobile popup)
+  // Sequential polling loop - awaits each step until connected, denied, or cancelled
   (async function runPollLoop() {
     while (isPairing) {
       await pollStep();
@@ -236,6 +536,11 @@ function initModals() {
   const deviceNameInput = document.getElementById("deviceNameInput");
   const regeneratePinBtn = document.getElementById("regeneratePinBtn");
   const copyPinBtn = document.getElementById("copyPinBtn");
+  const rescanPhonesBtn = document.getElementById("rescanPhonesBtn");
+  const toggleManualEntryBtn = document.getElementById("toggleManualEntryBtn");
+  const backFromConfirmBtn = document.getElementById("backFromConfirmBtn");
+  const retryConfirmPairingBtn = document.getElementById("retryConfirmPairingBtn");
+  const cancelConfirmPairingBtn = document.getElementById("cancelConfirmPairingBtn");
 
   const jsonFormatModal = document.getElementById("jsonFormatModal");
   const closeJsonFormatModalBtn = document.getElementById("closeJsonFormatModalBtn");
@@ -243,13 +548,51 @@ function initModals() {
   const devicesViewApiHelpBtn = document.getElementById("devicesViewApiHelpBtn");
   const togglePairingApiHelpBtn = document.getElementById("togglePairingApiHelpBtn");
   const inlineApiHelpBtn = document.getElementById("inlineApiHelpBtn");
+  const copyAliveJsonBtn = document.getElementById("copyAliveJsonBtn");
   const copySuccessJsonBtn = document.getElementById("copySuccessJsonBtn");
   const copyPendingJsonBtn = document.getElementById("copyPendingJsonBtn");
+  const copyDeniedJsonBtn = document.getElementById("copyDeniedJsonBtn");
 
   if (openAddDeviceModalBtn) openAddDeviceModalBtn.addEventListener("click", openAddDeviceModal);
   if (emptyAddDeviceBtn) emptyAddDeviceBtn.addEventListener("click", openAddDeviceModal);
   if (closeAddDeviceModalBtn) closeAddDeviceModalBtn.addEventListener("click", closeAddDeviceModal);
   if (cancelPairingBtn) cancelPairingBtn.addEventListener("click", closeAddDeviceModal);
+
+  if (rescanPhonesBtn) {
+    rescanPhonesBtn.addEventListener("click", () => {
+      runModalScan();
+    });
+  }
+
+  if (toggleManualEntryBtn) {
+    toggleManualEntryBtn.addEventListener("click", () => {
+      const form = document.getElementById("addDeviceForm");
+      const isHidden = !form || form.style.display === "none";
+      setManualExpanded(isHidden);
+      if (isHidden && deviceUrlInput) {
+        setTimeout(() => deviceUrlInput.focus(), 40);
+      }
+    });
+  }
+
+  if (backFromConfirmBtn) {
+    backFromConfirmBtn.addEventListener("click", async () => {
+      await cancelActiveConfirmSession();
+      showDiscoverView();
+    });
+  }
+
+  if (cancelConfirmPairingBtn) {
+    cancelConfirmPairingBtn.addEventListener("click", closeAddDeviceModal);
+  }
+
+  if (retryConfirmPairingBtn) {
+    retryConfirmPairingBtn.addEventListener("click", () => {
+      if (activeConfirmSession && activeConfirmSession.ip) {
+        startConfirmPairingSession(activeConfirmSession);
+      }
+    });
+  }
 
   if (regeneratePinBtn) {
     regeneratePinBtn.addEventListener("click", () => {
@@ -300,14 +643,37 @@ function initModals() {
     });
   }
 
+  if (copyAliveJsonBtn) {
+    copyAliveJsonBtn.addEventListener("click", () => {
+      const json = JSON.stringify(
+        {
+          phoneModel: "CPH2487",
+          batteryLevel: 81,
+          mode: "General",
+          deviceId: "dev_optional_stable_id",
+        },
+        null,
+        2,
+      );
+      clipboard.writeText(json);
+      showToast("Copied /alive JSON to clipboard!");
+    });
+  }
+
   if (copySuccessJsonBtn) {
     copySuccessJsonBtn.addEventListener("click", () => {
-      const json = JSON.stringify({
-        success: true,
-        status: "connected",
-        deviceName: "My Phone",
-        message: "Device paired successfully"
-      }, null, 2);
+      const json = JSON.stringify(
+        {
+          success: true,
+          status: "connected",
+          phoneModel: "CPH2487",
+          batteryLevel: 81,
+          mode: "General",
+          message: "Device paired successfully",
+        },
+        null,
+        2,
+      );
       clipboard.writeText(json);
       showToast("Copied Success JSON to clipboard!");
     });
@@ -315,13 +681,33 @@ function initModals() {
 
   if (copyPendingJsonBtn) {
     copyPendingJsonBtn.addEventListener("click", () => {
-      const json = JSON.stringify({
-        success: false,
-        status: "pending",
-        message: "Waiting for key entry on phone"
-      }, null, 2);
+      const json = JSON.stringify(
+        {
+          success: false,
+          status: "pending",
+          message: "Waiting for confirmation on phone",
+        },
+        null,
+        2,
+      );
       clipboard.writeText(json);
       showToast("Copied Pending JSON to clipboard!");
+    });
+  }
+
+  if (copyDeniedJsonBtn) {
+    copyDeniedJsonBtn.addEventListener("click", () => {
+      const json = JSON.stringify(
+        {
+          success: false,
+          status: "denied",
+          message: "Pairing cancelled on phone",
+        },
+        null,
+        2,
+      );
+      clipboard.writeText(json);
+      showToast("Copied Denied JSON to clipboard!");
     });
   }
 
@@ -343,6 +729,10 @@ module.exports = {
   openJsonFormatModal,
   closeJsonFormatModal,
   generatePairingPin,
+  renderScanCandidates,
+  startConfirmPairingSession,
+  startPairingWorkflow,
+  handlePairProgress,
   initModals,
   setOnDeviceAdded,
 };

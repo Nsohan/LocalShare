@@ -27,9 +27,9 @@ const { currentState, showToast } = require("./js/state");
 const { switchView, initNavigation, setNavigationCallbacks } = require("./js/navigation");
 const { renderFilesView, initFiles } = require("./js/files");
 const { generateQRCode, initConnect } = require("./js/connect");
-const { renderDevicesList, initDevices } = require("./js/devices");
+const { renderDevicesList, patchDeviceStatuses, initDevices } = require("./js/devices");
 const { scanAdbDevices, checkScrcpyStatus, initMirror } = require("./js/mirror");
-const { initModals, setOnDeviceAdded } = require("./js/modals");
+const { initModals, setOnDeviceAdded, handlePairProgress } = require("./js/modals");
 const { updateApiTokens, initApi } = require("./js/api");
 const { populateSettings, initSettings } = require("./js/settings");
 const { populateAboutView } = require("./js/about");
@@ -70,6 +70,14 @@ ipcRenderer.on("dashboard:state-updated", (event, state) => {
     Object.assign(currentState, state);
     renderDashboard();
   }
+});
+
+ipcRenderer.on("devices:status-updated", (event, payload) => {
+  patchDeviceStatuses(payload);
+});
+
+ipcRenderer.on("devices:pair-progress", (event, progress) => {
+  handlePairProgress(progress);
 });
 
 ipcRenderer.on("dashboard:clipboard-received", (event, data) => {

@@ -11,6 +11,12 @@ function populateSettings(config) {
   const setNotifications = document.getElementById("setNotifications");
   const setPort = document.getElementById("setPort");
   const setTheme = document.getElementById("setTheme");
+  const setDeviceAutoConnect = document.getElementById("setDeviceAutoConnect");
+  const setDeviceAutoScanNewNetworks = document.getElementById(
+    "setDeviceAutoScanNewNetworks",
+  );
+  const setDeviceScanPort = document.getElementById("setDeviceScanPort");
+  const setDeviceProbePath = document.getElementById("setDeviceProbePath");
 
   if (setAutostart) setAutostart.checked = config.autostart !== false;
   if (setOpenDashboard) setOpenDashboard.checked = config.openDashboardAtStart !== false;
@@ -19,6 +25,19 @@ function populateSettings(config) {
   if (setTheme) {
     setTheme.value = config.theme || "dark";
     applyTheme(config.theme);
+  }
+  if (setDeviceAutoConnect) {
+    setDeviceAutoConnect.checked = config.deviceAutoConnect !== false;
+  }
+  if (setDeviceAutoScanNewNetworks) {
+    setDeviceAutoScanNewNetworks.checked =
+      config.deviceAutoScanNewNetworks !== false;
+  }
+  if (setDeviceScanPort) {
+    setDeviceScanPort.value = config.deviceScanPort || 8000;
+  }
+  if (setDeviceProbePath) {
+    setDeviceProbePath.value = config.deviceProbePath || "/alive";
   }
 }
 
@@ -29,6 +48,12 @@ function initSettings() {
   const setNotifications = document.getElementById("setNotifications");
   const setPort = document.getElementById("setPort");
   const setTheme = document.getElementById("setTheme");
+  const setDeviceAutoConnect = document.getElementById("setDeviceAutoConnect");
+  const setDeviceAutoScanNewNetworks = document.getElementById(
+    "setDeviceAutoScanNewNetworks",
+  );
+  const setDeviceScanPort = document.getElementById("setDeviceScanPort");
+  const setDeviceProbePath = document.getElementById("setDeviceProbePath");
   const restartServerBtn = document.getElementById("restartServerBtn");
   const openReceivedFolderBtn = document.getElementById("openReceivedFolderBtn");
   const clearHistoryBtn = document.getElementById("clearHistoryBtn");
@@ -61,12 +86,45 @@ function initSettings() {
         return;
       }
 
+      const rawScanPort = setDeviceScanPort ? setDeviceScanPort.value.trim() : "8000";
+      const newScanPort = rawScanPort === "" ? 8000 : Number(rawScanPort);
+      if (!Number.isInteger(newScanPort) || newScanPort < 1 || newScanPort > 65535) {
+        showToast("Phone companion port must be between 1 and 65535");
+        return;
+      }
+
+      let probePath = (setDeviceProbePath ? setDeviceProbePath.value : "").trim();
+      if (!probePath) {
+        probePath = "/alive";
+      } else {
+        probePath = `/${probePath.replace(/^\/+/, "")}`;
+      }
+      if (
+        probePath.length > 64 ||
+        /[\s?#]/.test(probePath) ||
+        probePath.includes("://")
+      ) {
+        showToast("Device liveness path must be a clean path like /alive");
+        return;
+      }
+      if (setDeviceProbePath) {
+        setDeviceProbePath.value = probePath;
+      }
+
       const updatedSettings = {
         autostart: setAutostart.checked,
         openDashboardAtStart: setOpenDashboard.checked,
         notifications: setNotifications.checked,
         port: newPort,
         theme: setTheme.value,
+        deviceAutoConnect: setDeviceAutoConnect
+          ? setDeviceAutoConnect.checked
+          : true,
+        deviceAutoScanNewNetworks: setDeviceAutoScanNewNetworks
+          ? setDeviceAutoScanNewNetworks.checked
+          : true,
+        deviceScanPort: newScanPort,
+        deviceProbePath: probePath,
       };
 
       ipcRenderer.send("settings:save", updatedSettings);

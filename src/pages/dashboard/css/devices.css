@@ -210,3 +210,252 @@ body[data-theme="light"] .device-details-grid {
 .device-card-actions .btn {
   flex: 1;
 }
+
+/* Telemetry chips & unreachable banner */
+.device-telemetry-row {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 6px;
+}
+
+.device-chip {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  padding: 2px 8px;
+  border-radius: 6px;
+  font-size: 0.72rem;
+  font-weight: 600;
+  background: var(--surface-card);
+  border: 1px solid var(--border-subtle);
+  color: var(--text-main);
+}
+
+.device-chip.battery {
+  color: var(--accent-emerald);
+  border-color: rgba(16, 185, 129, 0.25);
+  background: rgba(16, 185, 129, 0.08);
+}
+
+.device-chip.mode {
+  color: var(--primary);
+  border-color: var(--border-hover);
+  background: var(--primary-subtle);
+}
+
+.device-chip.latency {
+  color: var(--text-muted);
+  font-family: monospace;
+}
+
+.device-unreachable-note {
+  padding: 7px 10px;
+  border-radius: var(--radius-sm);
+  background: rgba(245, 158, 11, 0.1);
+  border: 1px solid rgba(245, 158, 11, 0.28);
+  color: var(--accent-amber);
+  font-size: 0.75rem;
+  line-height: 1.35;
+}
+
+/* Add Device modal: Find my phone & confirm on phone */
+.add-device-modal-card {
+  max-height: 90vh;
+  display: flex;
+  flex-direction: column;
+}
+
+.add-device-modal-body {
+  overflow-y: auto;
+  max-height: calc(90vh - 82px);
+}
+
+.scan-section {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+}
+
+.scan-section-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+}
+
+.scan-section-title {
+  font-size: 0.9rem;
+  color: var(--text-main);
+}
+
+.scan-section-meta {
+  font-size: 0.75rem;
+  color: var(--text-muted);
+  margin-top: 2px;
+}
+
+.scan-candidates-list {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
+.scan-empty-hint {
+  padding: 12px;
+  border-radius: var(--radius-sm);
+  border: 1px dashed var(--border-subtle);
+  color: var(--text-muted);
+  font-size: 0.78rem;
+  line-height: 1.45;
+  text-align: center;
+}
+
+.scan-candidate-row {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  padding: 10px 12px;
+  border-radius: var(--radius-sm);
+  background: var(--surface-item);
+  border: 1px solid var(--border-subtle);
+}
+
+.scan-candidate-row:hover {
+  border-color: var(--border-hover);
+}
+
+.scan-candidate-meta {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  min-width: 0;
+}
+
+.scan-candidate-title {
+  font-size: 0.88rem;
+  font-weight: 600;
+  color: var(--text-main);
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.scan-candidate-sub {
+  font-family: monospace;
+  font-size: 0.75rem;
+  color: var(--text-muted);
+}
+
+.scan-candidate-badges {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 5px;
+  margin-top: 2px;
+}
+
+.scan-badge {
+  font-size: 0.68rem;
+  font-weight: 600;
+  padding: 1px 6px;
+  border-radius: 999px;
+  background: var(--surface-card);
+  border: 1px solid var(--border-subtle);
+  color: var(--text-muted);
+}
+
+.scan-badge.paired {
+  color: var(--accent-emerald);
+  border-color: rgba(16, 185, 129, 0.3);
+  background: rgba(16, 185, 129, 0.1);
+}
+
+.manual-divider {
+  margin: 14px 0 8px;
+  padding-top: 10px;
+  border-top: 1px solid var(--border-subtle);
+}
+
+.manual-toggle-btn {
+  width: 100%;
+  background: transparent;
+  border: none;
+  color: var(--text-muted);
+  font-size: 0.8rem;
+  font-weight: 600;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  cursor: pointer;
+  padding: 4px 2px;
+}
+
+.manual-toggle-btn:hover {
+  color: var(--text-main);
+}
+
+.manual-pairing-form {
+  margin-top: 10px;
+  display: flex;
+  flex-direction: column;
+  gap: 14px;
+}
+
+.confirm-phone-view {
+  display: flex;
+  flex-direction: column;
+  gap: 14px;
+}
+
+.confirm-phone-card {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  text-align: center;
+  gap: 10px;
+  padding: 18px 14px;
+  border-radius: var(--radius-md);
+  background: var(--surface-item);
+  border: 1px solid var(--border-subtle);
+}
+
+.confirm-phone-title {
+  margin: 0;
+  font-size: 1rem;
+  font-weight: 700;
+  color: var(--text-main);
+}
+
+.confirm-phone-subtitle {
+  margin: 0;
+  font-size: 0.8rem;
+  color: var(--text-muted);
+}
+
+.confirm-code-box {
+  font-family: monospace;
+  font-size: 1.9rem;
+  font-weight: 700;
+  letter-spacing: 0.25em;
+  color: var(--primary);
+  background: var(--surface-card);
+  border: 1px solid var(--border-hover);
+  border-radius: var(--radius-sm);
+  padding: 10px 18px;
+}
+
+.confirm-target-meta {
+  font-family: monospace;
+  font-size: 0.78rem;
+  color: var(--text-main);
+}
+
+.confirm-status-text {
+  font-size: 0.78rem;
+  color: var(--text-muted);
+}
+
+.code-tag.denied {
+  color: #f87171;
+}

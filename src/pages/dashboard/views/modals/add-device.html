@@ -1,6 +1,6 @@
 <!-- Add Device Modal -->
 <div class="modal-overlay" id="addDeviceModal" style="display: none;">
-  <div class="modal-card">
+  <div class="modal-card add-device-modal-card">
     <div class="modal-header">
       <div class="modal-title-wrap">
         <div class="modal-icon-badge">
@@ -11,7 +11,7 @@
         </div>
         <div>
           <h3 class="modal-title">Add New Device</h3>
-          <span class="modal-subtitle">Pair your mobile device server using a 6-digit key</span>
+          <span class="modal-subtitle">Find your phone on the network and confirm on screen</span>
         </div>
       </div>
       <div class="modal-header-actions">
@@ -20,111 +20,173 @@
       </div>
     </div>
 
-    <form id="addDeviceForm" class="modal-body">
-      <!-- Step 1: Device URL -->
-      <div class="modal-field-group">
-        <label class="modal-field-label" for="deviceUrlInput">
-          <span>Device Server Local URL</span>
-          <span class="field-required">*</span>
-          <button type="button" class="inline-help-btn" id="inlineApiHelpBtn" title="View Server Response JSON Format">?</button>
-        </label>
-        <div class="url-input-group">
-          <span class="url-prefix-addon">http://</span>
-          <input
-            type="text"
-            id="deviceUrlInput"
-            class="url-addon-input"
-            placeholder="192.168.1.4:8000"
-            required
-            autocomplete="off"
-            spellcheck="false"
-          />
+    <div class="modal-body add-device-modal-body">
+      <!-- View 1: Find My Phone + Manual Fallback -->
+      <div id="discoverDevicesView">
+        <div class="scan-section">
+          <div class="scan-section-header">
+            <div>
+              <strong class="scan-section-title">Find My Phone</strong>
+              <div class="scan-section-meta" id="scanSubnetLabel">Checking local Wi-Fi network...</div>
+            </div>
+            <button type="button" class="btn btn-sm btn-secondary" id="rescanPhonesBtn">
+              <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                <polyline points="23 4 23 10 17 10"></polyline>
+                <path d="M20.49 15a9 9 0 1 1-2.12-9.36L23 10"></path>
+              </svg>
+              <span id="rescanPhonesBtnText">Scan Network</span>
+            </button>
+          </div>
+
+          <div class="scan-candidates-list" id="scanCandidatesList">
+            <div class="scan-empty-hint">Click Scan Network to search this LAN for phones on port 8000.</div>
+          </div>
         </div>
-        <span class="modal-field-hint">Enter your mobile device server address (e.g. <code>192.168.1.4:8000</code>)</span>
-      </div>
 
-      <!-- Optional Device Name -->
-      <div class="modal-field-group">
-        <label class="modal-field-label" for="deviceNameInput">
-          <span>Device Name</span>
-          <span class="field-optional">(Optional)</span>
-        </label>
-        <input
-          type="text"
-          id="deviceNameInput"
-          class="modal-input"
-          placeholder="e.g. My Phone, Pixel 8, Tablet"
-          autocomplete="off"
-        />
-      </div>
-
-      <!-- Step 2: 6-Digit Pairing Key -->
-      <div class="modal-field-group">
-        <div class="pin-section-header">
-          <label class="modal-field-label">
-            <span>6-Digit Pairing Key</span>
-          </label>
-          <button type="button" class="btn-link" id="regeneratePinBtn" title="Generate another PIN">
-            <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
-              <polyline points="23 4 23 10 17 10"></polyline>
-              <path d="M20.49 15a9 9 0 1 1-2.12-9.36L23 10"></path>
+        <div class="manual-divider">
+          <button type="button" class="manual-toggle-btn" id="toggleManualEntryBtn" aria-expanded="false">
+            <span id="toggleManualEntryText">Or add manually by IP &amp; PIN</span>
+            <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+              <polyline points="6 9 12 15 18 9"></polyline>
             </svg>
-            <span>New Key</span>
           </button>
         </div>
 
-        <div class="pin-box">
-          <div class="pin-digits-wrap" id="pinDisplayWrapper">
-            <span class="pin-digit" id="pinDigit1">1</span>
-            <span class="pin-digit" id="pinDigit2">2</span>
-            <span class="pin-digit" id="pinDigit3">3</span>
-            <span class="pin-divider">&bull;</span>
-            <span class="pin-digit" id="pinDigit4">4</span>
-            <span class="pin-digit" id="pinDigit5">5</span>
-            <span class="pin-digit" id="pinDigit6">6</span>
+        <form id="addDeviceForm" class="manual-pairing-form" style="display: none;">
+          <!-- Step 1: Device URL -->
+          <div class="modal-field-group">
+            <label class="modal-field-label" for="deviceUrlInput">
+              <span>Device Server Local URL</span>
+              <span class="field-required">*</span>
+              <button type="button" class="inline-help-btn" id="inlineApiHelpBtn" title="View Server Response JSON Format">?</button>
+            </label>
+            <div class="url-input-group">
+              <span class="url-prefix-addon">http://</span>
+              <input
+                type="text"
+                id="deviceUrlInput"
+                class="url-addon-input"
+                placeholder="192.168.1.4:8000"
+                required
+                autocomplete="off"
+                spellcheck="false"
+              />
+            </div>
+            <span class="modal-field-hint" id="manualUrlHint">Enter your mobile device server address (e.g. <code>192.168.1.4:8000</code>)</span>
           </div>
-          <button type="button" class="btn btn-sm btn-secondary" id="copyPinBtn" title="Copy 6-digit key">
-            <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
-              <rect x="9" y="9" width="13" height="13" rx="2" ry="2"></rect>
-              <path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"></path>
-            </svg>
-            <span>Copy Key</span>
-          </button>
-        </div>
-        <span class="modal-field-hint">Add this 6-digit key to your phone. LocalShare will poll your phone's server every 1 second until confirmed.</span>
-      </div>
 
-      <!-- Step 3: Polling Status Indicator -->
-      <div class="polling-status-card" id="pollingStatusCard" style="display: none;">
-        <div class="polling-radar-wrap">
-          <div class="radar-ping"></div>
-          <div class="radar-core"></div>
-        </div>
-        <div class="polling-info">
-          <strong id="pollingStatusTitle">Connecting to device server...</strong>
-          <span id="pollingStatusSubtitle">Sending HTTP GET every 1 second. Please enter the key on your phone.</span>
-          <div class="polling-progress-row">
-            <span class="attempt-chip" id="pollingAttemptChip">Attempt #1</span>
-            <span class="polling-url-chip" id="pollingUrlChip">192.168.1.4:8000</span>
+          <!-- Optional Device Name -->
+          <div class="modal-field-group">
+            <label class="modal-field-label" for="deviceNameInput">
+              <span>Device Name</span>
+              <span class="field-optional">(Optional)</span>
+            </label>
+            <input
+              type="text"
+              id="deviceNameInput"
+              class="modal-input"
+              placeholder="e.g. My Phone, CPH2487"
+              autocomplete="off"
+            />
           </div>
+
+          <!-- Step 2: 6-Digit Pairing Key -->
+          <div class="modal-field-group">
+            <div class="pin-section-header">
+              <label class="modal-field-label">
+                <span>6-Digit Pairing Key</span>
+              </label>
+              <button type="button" class="btn-link" id="regeneratePinBtn" title="Generate another PIN">
+                <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                  <polyline points="23 4 23 10 17 10"></polyline>
+                  <path d="M20.49 15a9 9 0 1 1-2.12-9.36L23 10"></path>
+                </svg>
+                <span>New Key</span>
+              </button>
+            </div>
+
+            <div class="pin-box">
+              <div class="pin-digits-wrap" id="pinDisplayWrapper">
+                <span class="pin-digit" id="pinDigit1">1</span>
+                <span class="pin-digit" id="pinDigit2">2</span>
+                <span class="pin-digit" id="pinDigit3">3</span>
+                <span class="pin-divider">&bull;</span>
+                <span class="pin-digit" id="pinDigit4">4</span>
+                <span class="pin-digit" id="pinDigit5">5</span>
+                <span class="pin-digit" id="pinDigit6">6</span>
+              </div>
+              <button type="button" class="btn btn-sm btn-secondary" id="copyPinBtn" title="Copy 6-digit key">
+                <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                  <rect x="9" y="9" width="13" height="13" rx="2" ry="2"></rect>
+                  <path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"></path>
+                </svg>
+                <span>Copy Key</span>
+              </button>
+            </div>
+            <span class="modal-field-hint">Confirm this 6-digit key on your phone. LocalShare polls until accepted or denied.</span>
+          </div>
+
+          <!-- Step 3: Polling Status Indicator -->
+          <div class="polling-status-card" id="pollingStatusCard" style="display: none;">
+            <div class="polling-radar-wrap">
+              <div class="radar-ping"></div>
+              <div class="radar-core"></div>
+            </div>
+            <div class="polling-info">
+              <strong id="pollingStatusTitle">Connecting to device server...</strong>
+              <span id="pollingStatusSubtitle">Waiting for confirmation on your phone...</span>
+              <div class="polling-progress-row">
+                <span class="attempt-chip" id="pollingAttemptChip">Attempt #1</span>
+                <span class="polling-url-chip" id="pollingUrlChip"></span>
+              </div>
+            </div>
+          </div>
+
+          <!-- Error Feedback -->
+          <div class="modal-error-alert" id="modalErrorAlert" style="display: none;">
+            <span class="error-dot">!</span>
+            <span id="modalErrorText">Could not connect to device server.</span>
+          </div>
+
+          <div class="modal-actions">
+            <button type="button" class="btn btn-secondary" id="cancelPairingBtn">Cancel</button>
+            <button type="submit" class="btn btn-primary" id="startPairingBtn">
+              <svg class="btn-spinner" id="pairingBtnSpinner" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" style="display: none;">
+                <circle cx="12" cy="12" r="10" stroke-dasharray="32" stroke-linecap="round"></circle>
+              </svg>
+              <span id="startPairingBtnText">Start Pairing</span>
+            </button>
+          </div>
+        </form>
+      </div>
+
+      <!-- View 2: Confirm on Phone (Main-process pairing session) -->
+      <div id="confirmPhoneView" class="confirm-phone-view" style="display: none;">
+        <div class="confirm-phone-card">
+          <div class="polling-radar-wrap confirm-radar">
+            <div class="radar-ping"></div>
+            <div class="radar-core"></div>
+          </div>
+          <h4 class="confirm-phone-title" id="confirmPhoneTitle">Confirm on your phone</h4>
+          <p class="confirm-phone-subtitle" id="confirmPhoneSubtitle">Verify that the 6-digit code matches and tap Connect.</p>
+
+          <div class="confirm-code-box" id="confirmCodeDigits">------</div>
+
+          <div class="confirm-target-meta" id="confirmPhoneTarget"></div>
+          <div class="confirm-status-text" id="confirmPhoneStatusText">Sending pairing request...</div>
+        </div>
+
+        <div class="modal-error-alert" id="confirmPhoneErrorAlert" style="display: none;">
+          <span class="error-dot">!</span>
+          <span id="confirmPhoneErrorText">Pairing was denied or timed out.</span>
+        </div>
+
+        <div class="modal-actions">
+          <button type="button" class="btn btn-secondary" id="backFromConfirmBtn">Back</button>
+          <button type="button" class="btn btn-primary" id="retryConfirmPairingBtn" style="display: none;">Try Again</button>
+          <button type="button" class="btn btn-secondary" id="cancelConfirmPairingBtn">Cancel</button>
         </div>
       </div>
-
-      <!-- Error Feedback -->
-      <div class="modal-error-alert" id="modalErrorAlert" style="display: none;">
-        <span class="error-dot">!</span>
-        <span id="modalErrorText">Could not connect to device server.</span>
-      </div>
-
-      <div class="modal-actions">
-        <button type="button" class="btn btn-secondary" id="cancelPairingBtn">Cancel</button>
-        <button type="submit" class="btn btn-primary" id="startPairingBtn">
-          <svg class="btn-spinner" id="pairingBtnSpinner" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" style="display: none;">
-            <circle cx="12" cy="12" r="10" stroke-dasharray="32" stroke-linecap="round"></circle>
-          </svg>
-          <span id="startPairingBtnText">Start Pairing</span>
-        </button>
-      </div>
-    </form>
+    </div>
   </div>
 </div>

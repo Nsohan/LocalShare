@@ -6,12 +6,25 @@ const fs = require("fs");
 const path = require("path");
 const network = require("network");
 const logger = require("../config/logger");
+const { getLanInterface } = require("./lanScanner");
+
+/**
+ * Get the active LAN interface details
+ * @returns {Object|null} Primary LAN interface info or null
+ */
+function getLocalNetworkInfo() {
+  return getLanInterface();
+}
 
 /**
  * Get the local IP address
  * @returns {string} Local IP address or localhost if none found
  */
 function getLocalIP() {
+  const lan = getLanInterface();
+  if (lan && lan.address) {
+    return lan.address;
+  }
   const nets = os.networkInterfaces();
   for (const name of Object.keys(nets)) {
     for (const net of nets[name]) {
@@ -125,6 +138,7 @@ function getAppIcon() {
 
 module.exports = {
   getLocalIP,
+  getLocalNetworkInfo,
   filterValidFiles,
   getAppIconPath,
   getAppNativeImage,

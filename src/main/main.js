@@ -9,6 +9,7 @@ const {
   shell,
   dialog,
   clipboard,
+  powerMonitor,
 } = require("electron");
 const path = require("path");
 const fs = require("fs");
@@ -26,6 +27,7 @@ const {
 const {
   filterValidFiles,
   getLocalIP,
+  getLocalNetworkInfo,
   getAppIconPath,
   getAppNativeImage,
   getAppIcon,
@@ -36,6 +38,16 @@ const {
   getDashboardWindow,
 } = require("./windows/dashboard");
 const scrcpyManager = require("./scrcpy");
+const lanScanner = require("./lanScanner");
+const {
+  ensureDeviceIdsInList,
+  findMatchingDevice,
+  upsertDeviceInList,
+  fetchPairOnce,
+  createPairingManager,
+  normalizeBatteryLevel,
+} = require("./devicePairing");
+const { DeviceWatcher } = require("./deviceWatcher");
 
 // Make sure app is ready before requiring config
 let configReady = false;
@@ -51,6 +63,8 @@ const gotTheLock = app.requestSingleInstanceLock();
 let serverProcess = null;
 let sharedFiles = [];
 let tray = null;
+const deviceRuntimeMap = new Map();
+let deviceWatcher = null;
 
 /**
  * Show notification if user enabled notifications in settings
@@ -130,19 +144,162 @@ function getFormattedFiles(filePaths = sharedFiles) {
 }
 
 /**
+ * Ensure saved device records have stable IDs, `model` field, and no persisted runtime status.
+ */
+function ensureDeviceIds() {
+  try {
+    const probePath = getConfig("deviceProbePath") || "/alive";
+    const { devices, changed } = ensureDeviceIdsInList(
+      getConfig("devices") || [],
+      probePath,
+    );
+    if (changed) {
+      logger.info("Migrated legacy device records in config.json");
+      setConfig("devices", devices);
+    }
+  } catch (err) {
+    logger.error("Error migrating devices:", err);
+  }
+}
+
+/**
+ * Return saved devices merged with in-memory runtime status.
+ */
+function getDevicesWithRuntime() {
+  const saved = getConfig("devices") || [];
+  const runtimeSource = deviceWatcher
+    ? deviceWatcher.getRuntime()
+    : deviceRuntimeMap;
+  return saved.map((device) => {
+    const rt =
+      runtimeSource instanceof Map
+        ? runtimeSource.get(device.id)
+        : runtimeSource?.[device.id];
+    return rt ? { ...device, ...rt } : { ...device };
+  });
+}
+
+/**
+ * Upsert a paired device into config.json (deduping by id / deviceId / model / url)
+ * and seed in-memory runtime status without writing runtime fields to disk.
+ */
+function upsertPairedDevice(incomingDevice) {
+  const probePath = getConfig("deviceProbePath") || "/alive";
+  const current = getConfig("devices") || [];
+  const { devices: updated, savedDevice } = upsertDeviceInList(
+    current,
+    incomingDevice,
+    probePath,
+  );
+  setConfig("devices", updated);
+
+  const runtime =
+    incomingDevice && incomingDevice.runtime
+      ? incomingDevice.runtime
+      : incomingDevice &&
+          (incomingDevice.status ||
+            incomingDevice.battery !== undefined ||
+            incomingDevice.mode !== undefined)
+        ? {
+            status: incomingDevice.status || "online",
+            latencyMs: incomingDevice.latencyMs ?? null,
+            battery: incomingDevice.battery ?? null,
+            mode: incomingDevice.mode ?? null,
+            lastSeenAt:
+              incomingDevice.lastSeenAt ||
+              incomingDevice.lastSeen ||
+              new Date().toISOString(),
+          }
+        : null;
+
+  if (runtime) {
+    const rtEntry = {
+      status: runtime.status || "online",
+      latencyMs: runtime.latencyMs ?? null,
+      battery: runtime.battery ?? null,
+      mode: runtime.mode ?? null,
+      lastSeenAt: runtime.lastSeenAt || new Date().toISOString(),
+      unreachableReason: null,
+    };
+    deviceRuntimeMap.set(savedDevice.id, rtEntry);
+    deviceWatcher?.setDeviceRuntime(savedDevice.id, rtEntry);
+  }
+
+  deviceWatcher?.recordKnownNetworksFromInterfaces(
+    lanScanner.getLanInterfaces(),
+  );
+  broadcastDashboardState();
+  deviceWatcher?.handleDevicesChanged();
+
+  showAppNotification({
+    title: "LocalShare - Device Connected",
+    body: `"${savedDevice.name}" was successfully paired!`,
+  });
+
+  return {
+    success: true,
+    devices: getDevicesWithRuntime(),
+    savedDevice,
+  };
+}
+
+/**
+ * Emit lightweight live device runtime status updates without forcing full QR re-render.
+ */
+function emitDeviceStatusUpdate() {
+  const win = getDashboardWindow();
+  if (win && !win.isDestroyed()) {
+    const netInfo = getLocalNetworkInfo();
+    win.webContents.send("devices:status-updated", {
+      devices: getDevicesWithRuntime(),
+      serverInfo: {
+        ip: netInfo?.address || getLocalIP(),
+        netmask: netInfo?.netmask || null,
+        cidr: netInfo?.cidr || null,
+      },
+    });
+  }
+}
+
+/**
+ * Create (once) and return the background DeviceWatcher instance.
+ */
+function initDeviceWatcher() {
+  if (!deviceWatcher) {
+    deviceWatcher = new DeviceWatcher({
+      getDevices: () => getConfig("devices") || [],
+      saveDevices: (updatedDevices) => setConfig("devices", updatedDevices),
+      getConfig: (key) => getConfig(key),
+      saveKnownNetworks: (signatures) =>
+        setConfig("knownNetworkSignatures", signatures),
+      emitStatus: emitDeviceStatusUpdate,
+      emitStateChanged: broadcastDashboardState,
+      notify: ({ title, body }) => showAppNotification({ title, body }),
+      scanner: lanScanner,
+      runtimeMap: deviceRuntimeMap,
+      logger,
+    });
+  }
+  return deviceWatcher;
+}
+
+/**
  * Get the full dashboard state object
  */
 function getDashboardState() {
   const port = getConfig("port") || 5199;
-  const ip = getLocalIP();
+  const netInfo = getLocalNetworkInfo();
+  const ip = netInfo?.address || getLocalIP();
   return {
     sentFiles: getFormattedFiles(),
     receivedFiles: getConfig("receivedFiles") || [],
-    devices: getConfig("devices") || [],
+    devices: getDevicesWithRuntime(),
     serverInfo: {
       ip,
       port,
       url: `http://${ip}:${port}`,
+      netmask: netInfo?.netmask || null,
+      cidr: netInfo?.cidr || null,
       isRunning: serverProcess !== null,
     },
     config: getConfig(),
@@ -580,6 +737,82 @@ if (!gotTheLock) {
   // Device Pairing & Polling IPC
   // ==========================
 
+  const recentPollMetaByOrigin = new Map();
+
+  const pairingManager = createPairingManager({
+    saveDevice: async (pairedDevice) => {
+      const res = upsertPairedDevice(pairedDevice);
+      return res.savedDevice;
+    },
+    emitProgress: (progress) => {
+      const win = getDashboardWindow();
+      if (win && !win.isDestroyed()) {
+        win.webContents.send("devices:pair-progress", progress);
+      }
+    },
+  });
+
+  // Scan local subnets for Tasker /alive responders
+  ipcMain.handle("devices:scan", async (event, options = {}) => {
+    try {
+      const port = Number(options?.port) || getConfig("deviceScanPort") || 8000;
+      const probePath =
+        options?.path || getConfig("deviceProbePath") || "/alive";
+      const saved = getConfig("devices") || [];
+      const preferNear =
+        options?.preferNear || saved.find((d) => d.ip)?.ip || null;
+      const res = await lanScanner.scanSubnets({
+        port,
+        path: probePath,
+        preferNear,
+        includeSelf: Boolean(options?.includeSelf),
+        timeoutMs: options?.timeoutMs,
+      });
+      const candidates = res.candidates.map((c) => ({
+        ...c,
+        alreadyPaired: Boolean(findMatchingDevice(saved, c)),
+      }));
+      return {
+        lan: res.lan,
+        scanned: res.scanned,
+        tookMs: res.tookMs,
+        candidates,
+      };
+    } catch (err) {
+      logger.error("devices:scan error:", err);
+      return { lan: null, scanned: 0, tookMs: 0, candidates: [], error: err.message };
+    }
+  });
+
+  // Start main-process confirm-on-phone pairing session
+  ipcMain.handle("devices:pair-start", async (event, options = {}) => {
+    const port = Number(options?.port) || getConfig("deviceScanPort") || 8000;
+    const probePath =
+      options?.probePath || getConfig("deviceProbePath") || "/alive";
+    return pairingManager.startPairing({
+      ip: options?.ip,
+      port,
+      model: options?.model || null,
+      customName: options?.customName || "",
+      probePath,
+    });
+  });
+
+  // Cancel active confirm-on-phone pairing session
+  ipcMain.handle("devices:pair-cancel", async (event, { attemptId } = {}) => {
+    const cancelled = pairingManager.cancelPairing(attemptId);
+    return { cancelled };
+  });
+
+  // Trigger immediate relocate / rescan
+  ipcMain.handle("devices:rescan", async () => {
+    if (deviceWatcher && typeof deviceWatcher.relocateNow === "function") {
+      await deviceWatcher.relocateNow({ manual: true });
+      return { started: true, devices: getDevicesWithRuntime() };
+    }
+    return { started: false, devices: getDevicesWithRuntime() };
+  });
+
   // Poll device server to check if 6-digit key was entered and accepted
   ipcMain.handle(
     "devices:poll-check",
@@ -607,71 +840,73 @@ if (!gotTheLock) {
 
         logger.info(`devices:poll-check fetching: ${parsedUrl.toString()}`);
 
-        const controller = new AbortController();
-        // Allow up to 25s for mobile user to enter PIN in popup dialog
-        const timeoutId = setTimeout(() => controller.abort(), 25000);
-
-        const res = await fetch(parsedUrl.toString(), {
-          method: "GET",
-          signal: controller.signal,
-          headers: {
-            Accept: "application/json, text/plain, */*",
-            "X-Pairing-Key": pairingKey,
-            "X-Device-Type": "desktop",
-          },
+        const result = await fetchPairOnce({
+          url: parsedUrl.toString(),
+          pairingKey,
+          pcName: os.hostname(),
+          // Allow up to 25s for mobile user to enter PIN in popup dialog
+          timeoutMs: 25000,
         });
 
-        clearTimeout(timeoutId);
-        logger.info(`devices:poll-check response status: ${res.status}`);
-
-        const contentType = res.headers.get("content-type") || "";
-        let data = null;
-        let text = "";
-
-        if (contentType.includes("application/json")) {
-          try {
-            data = await res.json();
-            logger.info(`devices:poll-check JSON body:`, data);
-          } catch (e) {
-            text = await res.text();
-          }
-        } else {
-          text = await res.text();
+        logger.info(`devices:poll-check response status: ${result.status}`);
+        if (result.json) {
+          logger.info(`devices:poll-check JSON body:`, result.json);
         }
 
-        // 2xx response
-        if (res.status >= 200 && res.status < 300) {
-          if (data) {
-            // If JSON explicitly marks pending or failure
-            if (
-              data.success === false ||
-              data.status === "error" ||
-              data.status === "pending" ||
-              data.paired === false ||
-              data.waiting === true
-            ) {
-              return {
-                connected: false,
-                status: res.status,
-                message: data.message || "Waiting for key entry on mobile...",
-              };
-            }
+        if (result.state === "denied") {
+          return {
+            connected: false,
+            denied: true,
+            final: true,
+            status: result.status,
+            message: result.message || "Pairing denied on phone",
+          };
+        }
 
-            return {
-              connected: true,
-              status: res.status,
-              deviceName:
-                data.name ||
-                data.deviceName ||
-                data.hostname ||
-                data.model ||
-                data.device ||
-                null,
-              data,
-            };
-          }
+        if (result.state === "error") {
+          return {
+            connected: false,
+            error: "invalid_response",
+            final: true,
+            status: result.status,
+            message: result.message || "Invalid response from device",
+          };
+        }
 
-          const lowerText = text.toLowerCase().trim();
+        if (result.state === "pending") {
+          return {
+            connected: false,
+            pending: true,
+            status: result.status,
+            message: result.message || "Waiting for key entry on mobile...",
+          };
+        }
+
+        if (result.state === "accepted") {
+          recentPollMetaByOrigin.set(parsedUrl.origin, {
+            model: result.phoneModel || null,
+            deviceId: result.deviceId || null,
+            battery: result.battery ?? null,
+            mode: result.mode ?? null,
+            token: result.token ?? null,
+            latencyMs: result.latencyMs,
+            expiresAt: Date.now() + 60000,
+          });
+          return {
+            connected: true,
+            status: result.status,
+            deviceName: result.deviceName,
+            phoneModel: result.phoneModel,
+            deviceId: result.deviceId,
+            battery: result.battery,
+            mode: result.mode,
+            token: result.token,
+            data: result.json,
+          };
+        }
+
+        if (result.state === "plain_2xx") {
+          const lowerText = (result.text || "").toLowerCase().trim();
           if (
             lowerText.includes("wait") ||
             lowerText.includes("pending") ||
@@ -681,22 +916,24 @@ if (!gotTheLock) {
           ) {
             return {
               connected: false,
-              status: res.status,
+              status: result.status,
               message: "Waiting for key entry on mobile...",
             };
           }
 
           return {
             connected: true,
-            status: res.status,
-            text,
+            status: result.status,
+            text: result.text,
           };
         }
 
         return {
           connected: false,
-          status: res.status,
-          message: `HTTP ${res.status}: Waiting for authorization...`,
+          status: result.status,
+          message:
+            result.message ||
+            `HTTP ${result.status}: Waiting for authorization...`,
         };
       } catch (err) {
         logger.error("devices:poll-check error:", err);
@@ -716,23 +953,36 @@ if (!gotTheLock) {
     },
   );
 
-  // Save new paired device
+  // Save new paired device (deduping by id / deviceId / model / url)
   ipcMain.handle("devices:save", async (event, newDevice) => {
     try {
-      const devices = getConfig("devices") || [];
-      const filtered = devices.filter(
-        (d) => d.id !== newDevice.id && d.url !== newDevice.url,
-      );
-      const updated = [newDevice, ...filtered];
-      setConfig("devices", updated);
-      broadcastDashboardState();
-
-      showAppNotification({
-        title: "LocalShare - Device Connected",
-        body: `"${newDevice.name}" was successfully paired!`,
-      });
-
-      return { success: true, devices: updated };
+      let enriched = { ...(newDevice || {}) };
+      if (enriched.url) {
+        try {
+          const origin = new URL(
+            /^https?:\/\//i.test(enriched.url)
+              ? enriched.url
+              : `http://${enriched.url}`,
+          ).origin;
+          const cached = recentPollMetaByOrigin.get(origin);
+          if (cached && cached.expiresAt > Date.now()) {
+            recentPollMetaByOrigin.delete(origin);
+            enriched = {
+              ...enriched,
+              model: enriched.model || cached.model,
+              deviceId: enriched.deviceId || cached.deviceId,
+              token: enriched.token || cached.token,
+              battery: enriched.battery ?? cached.battery,
+              mode: enriched.mode ?? cached.mode,
+              latencyMs: enriched.latencyMs ?? cached.latencyMs,
+            };
+          }
+        } catch {
+          // Ignore URL parse issues here; upsertDeviceInList will normalize
+        }
+      }
+      const res = upsertPairedDevice(enriched);
+      return { success: true, devices: res.devices, savedDevice: res.savedDevice };
     } catch (err) {
       logger.error("Error saving device:", err);
       return { success: false, error: err.message };
@@ -745,8 +995,11 @@ if (!gotTheLock) {
       const devices = getConfig("devices") || [];
       const updated = devices.filter((d) => d.id !== deviceId);
       setConfig("devices", updated);
+      deviceRuntimeMap.delete(deviceId);
+      deviceWatcher?.removeDeviceRuntime(deviceId);
       broadcastDashboardState();
-      return { success: true, devices: updated };
+      deviceWatcher?.handleDevicesChanged();
+      return { success: true, devices: getDevicesWithRuntime() };
     } catch (err) {
       logger.error("Error removing device:", err);
       return { success: false, error: err.message };
@@ -899,6 +1152,7 @@ if (!gotTheLock) {
 
       broadcastDashboardState();
       updateTrayMenu(sharedFiles);
+      deviceWatcher?.handleSettingsChanged();
 
       event.sender.send("settings:saved", {
         success,
@@ -960,6 +1214,7 @@ if (!gotTheLock) {
     try {
       // Now we can safely access config
       configReady = true;
+      ensureDeviceIds();
 
       // Set autostart based on config (default is true)
       const autostart = getConfig("autostart");
@@ -999,6 +1254,14 @@ if (!gotTheLock) {
       const success = await startServer(sharedFiles);
       logger.info("Server start result:", success);
 
+      const watcher = initDeviceWatcher();
+      watcher.start();
+
+      powerMonitor.on("resume", () => {
+        logger.info("System resumed from sleep; triggering device watcher check");
+        watcher.handleResume();
+      });
+
       app.on("activate", () => {
         showDashboardWindow();
       });
@@ -1020,6 +1283,8 @@ if (!gotTheLock) {
   app.on("before-quit", () => {
     app.isQuiting = true;
     logger.info("App quitting...");
+    deviceWatcher?.stop();
+    pairingManager.stopAll();
     scrcpyManager.stopAllSessions();
     if (serverProcess) {
       logger.info("Killing server process on app quit...");
