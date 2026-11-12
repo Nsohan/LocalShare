@@ -83,7 +83,24 @@ try {
   // Initialize shared files from command line arguments
   logger.debug("Setting up shared files from args:", process.argv.slice(2));
   global.sharedFiles = setupSharedFiles(process.argv.slice(2));
+  global.sharedTexts = [];
   logger.info(`Initialized ${global.sharedFiles.length} shared files`);
+
+  // Receive live shared-text updates from parent Electron process over IPC
+  process.on("message", (msg) => {
+    if (msg && msg.type === "sync-shared-texts" && Array.isArray(msg.sharedTexts)) {
+      global.sharedTexts = msg.sharedTexts;
+      logger.info(`Synced ${global.sharedTexts.length} shared text item(s)`);
+    }
+  });
+
+  if (process.send) {
+    try {
+      process.send({ type: "server-ready" });
+    } catch (ipcErr) {
+      logger.warn("Failed to notify parent process:", ipcErr.message);
+    }
+  }
 
   // Log middleware
   app.use((req, res, next) => {

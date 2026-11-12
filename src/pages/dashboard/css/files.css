@@ -1,6 +1,152 @@
 /* =======================================================
    VIEW 1: FILES & SHARING STYLES
    ======================================================= */
+.share-composer-shell {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+}
+
+.share-mode-bar {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  flex-wrap: wrap;
+}
+
+.share-mode-tabs {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  padding: 4px;
+  background: var(--surface-card);
+  border: 1px solid var(--border-subtle);
+  border-radius: var(--radius-md);
+}
+
+.share-mode-btn {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  padding: 6px 12px;
+  border-radius: var(--radius-sm);
+  border: 1px solid transparent;
+  background: transparent;
+  color: var(--text-muted);
+  font-family: var(--font-body);
+  font-size: 0.82rem;
+  font-weight: 600;
+  cursor: pointer;
+  transition: all 0.15s ease;
+}
+
+.share-mode-btn:hover {
+  color: var(--text-main);
+  background: var(--surface-item-hover);
+}
+
+.share-mode-btn.active {
+  background: var(--primary-subtle);
+  color: var(--primary-text);
+  border-color: var(--border-hover);
+}
+
+.share-mode-hint {
+  font-size: 0.78rem;
+  color: var(--text-dim);
+}
+
+.share-mode-pane {
+  display: none;
+}
+
+.share-mode-pane.active {
+  display: block;
+}
+
+.text-composer-card {
+  background: var(--surface-card);
+  border: 1px solid var(--border-subtle);
+  border-radius: var(--radius-lg);
+  padding: 16px 18px;
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+}
+
+.text-composer-top {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 10px;
+}
+
+.text-composer-title-input {
+  flex: 1;
+  min-width: 0;
+  background: var(--surface-input);
+  border: 1px solid var(--border-subtle);
+  border-radius: var(--radius-sm);
+  padding: 7px 12px;
+  color: var(--text-main);
+  font-family: var(--font-body);
+  font-size: 0.85rem;
+  font-weight: 500;
+  outline: none;
+  user-select: text;
+  -webkit-user-select: text;
+  transition: border-color 0.15s ease, box-shadow 0.15s ease;
+}
+
+.text-composer-title-input:focus {
+  border-color: var(--primary);
+  box-shadow: 0 0 0 3px var(--primary-glow);
+}
+
+.text-composer-textarea {
+  width: 100%;
+  min-height: 104px;
+  max-height: 220px;
+  resize: vertical;
+  background: var(--surface-input);
+  border: 1px solid var(--border-subtle);
+  border-radius: var(--radius-md);
+  padding: 10px 12px;
+  color: var(--text-main);
+  font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, monospace;
+  font-size: 0.84rem;
+  line-height: 1.5;
+  outline: none;
+  user-select: text;
+  -webkit-user-select: text;
+  transition: border-color 0.15s ease, box-shadow 0.15s ease;
+}
+
+.text-composer-textarea:focus {
+  border-color: var(--primary);
+  box-shadow: 0 0 0 3px var(--primary-glow);
+}
+
+.text-composer-footer {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 10px;
+}
+
+.text-composer-count {
+  font-size: 0.76rem;
+  color: var(--text-dim);
+  font-family: monospace;
+}
+
+.text-composer-actions {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
 .dropzone {
   border: 2px dashed var(--dropzone-border);
   background: var(--dropzone-bg);
@@ -223,6 +369,7 @@
 .ext-badge.zip { background: rgba(6, 182, 212, 0.15); color: #22d3ee; }
 .ext-badge.code { background: rgba(16, 185, 129, 0.15); color: #34d399; }
 .ext-badge.doc { background: rgba(59, 130, 246, 0.15); color: #60a5fa; }
+.ext-badge.txt { background: rgba(99, 102, 241, 0.16); color: #a5b4fc; border: 1px solid rgba(99, 102, 241, 0.35); }
 .ext-badge.file { background: rgba(148, 163, 184, 0.15); color: #cbd5e1; }
 
 body[data-theme="light"] .ext-badge.pdf { background: #ffe4e6; color: #e11d48; }
@@ -232,6 +379,7 @@ body[data-theme="light"] .ext-badge.audio { background: #fef3c7; color: #d97706;
 body[data-theme="light"] .ext-badge.zip { background: #cffafe; color: #0891b2; }
 body[data-theme="light"] .ext-badge.code { background: #d1fae5; color: #059669; }
 body[data-theme="light"] .ext-badge.doc { background: #dbeafe; color: #2563eb; }
+body[data-theme="light"] .ext-badge.txt { background: #e0e7ff; color: #4338ca; border: 1px solid #c7d2fe; }
 body[data-theme="light"] .ext-badge.file { background: #e2e8f0; color: #475569; }
 
 .file-info {

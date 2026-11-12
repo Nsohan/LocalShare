@@ -1,5 +1,109 @@
 const { ipcRenderer, clipboard } = require("electron");
 const { currentState, getCurrentTab, setCurrentTab, getFileCategory, showToast } = require("./state");
+const { escapeHtml } = require("./devices");
+
+function deriveTextTitle(content, customTitle = "") {
+  const explicit = typeof customTitle === "string" ? customTitle.trim() : "";
+  if (explicit) return explicit;
+
+  const raw = typeof content === "string" ? content.trim() : "";
+  if (!raw) return "Text snippet";
+
+  const lines = raw.split(/\r?\n/).map((l) => l.trim()).filter(Boolean);
+  const firstLine = lines[0] || "";
+  const words = firstLine.split(/\s+/).filter(Boolean);
+  if (words.length === 0) return "Text snippet";
+
+  const maxWords = 4;
+  const maxChars = 24;
+  const picked = [];
+
+  for (let i = 0; i < Math.min(words.length, maxWords); i++) {
+    const candidate = picked.length > 0 ? `${picked.join(" ")} ${words[i]}` : words[i];
+    if (candidate.length > maxChars) {
+      if (picked.length === 0) {
+        return `${words[0].slice(0, maxChars - 2)}..`;
+      }
+      break;
+    }
+    picked.push(words[i]);
+  }
+
+  const prefix = picked.join(" ");
+  const isTruncated = picked.length < words.length || lines.length > 1;
+  return isTruncated ? `${prefix}..` : prefix;
+}
+
+function formatActiveSharedLabel(fileCount, textCount) {
+  if (textCount === 0) {
+    return `${fileCount} File${fileCount !== 1 ? "s" : ""}`;
+  }
+  if (fileCount === 0) {
+    return `${textCount} Text${textCount !== 1 ? "s" : ""}`;
+  }
+  return `${fileCount} File${fileCount !== 1 ? "s" : ""} · ${textCount} Text${textCount !== 1 ? "s" : ""}`;
+}
+
+function updateTextShareCounter(inputEl, counterEl) {
+  if (!inputEl || !counterEl) return;
+  const val = inputEl.value || "";
+  const lines = val ? val.split(/\r?\n/).length : 0;
+  counterEl.textContent = `${val.length} chars • ${lines} line${lines === 1 ? "" : "s"}`;
+}
+
+function createSharedTextRow(item) {
+  const card = document.createElement("div");
+  card.className = "file-card";
+
+  const contentText = typeof item.content === "string" ? item.content : "";
+  const titleText = deriveTextTitle(contentText, item.title);
+  const compactSnippet = contentText.replace(/\s+/g, " ").trim();
+  const safeTitle = escapeHtml(titleText);
+  const safeSnippet = escapeHtml(compactSnippet);
+
+  card.innerHTML = `
+    <div class="file-meta-group">
+      <div class="ext-badge txt">TXT</div>
+      <div class="file-info">
+        <span class="file-name" title="${safeTitle}">${safeTitle}</span>
+        <div class="file-subtext">
+          <span class="file-size-tag">${contentText.length} chars</span>
+          <span class="file-path" title="${safeSnippet}">${safeSnippet}</span>
+        </div>
+      </div>
+    </div>
+    <div class="file-actions">
+      <button class="action-btn" data-action="copy-text" title="Copy Text Content">
+        <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+          <rect x="9" y="9" width="13" height="13" rx="2" ry="2"></rect>
+          <path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"></path>
+        </svg>
+      </button>
+      <button class="action-btn delete" data-action="remove-text" title="Remove from LocalShare">
+        <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+          <line x1="18" y1="6" x2="6" y2="18"></line>
+          <line x1="6" y1="6" x2="18" y2="18"></line>
+        </svg>
+      </button>
+    </div>
+  `;
+
+  const copyBtn = card.querySelector('[data-action="copy-text"]');
+  copyBtn.addEventListener("click", () => {
+    clipboard.writeText(contentText);
+    showToast(`Copied "${titleText}" to clipboard!`);
+  });
+
+  const removeBtn = card.querySelector('[data-action="remove-text"]');
+  removeBtn.addEventListener("click", () => {
+    currentState.sharedTexts = (currentState.sharedTexts || []).filter((t) => t.id !== item.id);
+    renderFilesView();
+    ipcRenderer.send("dashboard:remove-text", item.id);
+    showToast(`Removed "${titleText}"`);
+  });
+
+  return card;
+}
 
 function renderFilesView() {
   const statFilesCount = document.getElementById("statFilesCount");
@@ -17,14 +121,14 @@ function renderFilesView() {
   const sidebarServerStatus = document.getElementById("sidebarServerStatus");
   const sidebarServerIp = document.getElementById("sidebarServerIp");
 
-  const { sentFiles = [], receivedFiles = [], serverInfo = {} } = currentState;
+  const { sentFiles = [], sharedTexts = [], receivedFiles = [], serverInfo = {} } = currentState;
 
   if (statFilesCount) {
-    statFilesCount.textContent = `${sentFiles.length} File${sentFiles.length !== 1 ? "s" : ""}`;
+    statFilesCount.textContent = formatActiveSharedLabel(sentFiles.length, sharedTexts.length);
   }
-  if (sentBadge) sentBadge.textContent = sentFiles.length;
+  if (sentBadge) sentBadge.textContent = sentFiles.length + sharedTexts.length;
   if (receivedBadge) receivedBadge.textContent = receivedFiles.length;
-  if (navFilesBadge) navFilesBadge.textContent = sentFiles.length + receivedFiles.length;
+  if (navFilesBadge) navFilesBadge.textContent = sentFiles.length + sharedTexts.length + receivedFiles.length;
 
   const ip = serverInfo.ip || "127.0.0.1";
   const port = serverInfo.port || 5199;
@@ -62,17 +166,19 @@ function renderFilesView() {
   }
 
   if (sentFilesList && sentEmptyState) {
-    renderFileList(sentFiles, sentFilesList, sentEmptyState, "send");
+    renderFileList(sentFiles, sentFilesList, sentEmptyState, "send", sharedTexts);
   }
   if (receivedFilesList && receivedEmptyState) {
-    renderFileList(receivedFiles, receivedFilesList, receivedEmptyState, "received");
+    renderFileList(receivedFiles, receivedFilesList, receivedEmptyState, "received", []);
   }
 }
 
-function renderFileList(files, listElement, emptyElement, tab) {
+function renderFileList(files, listElement, emptyElement, tab, sharedTexts = []) {
   listElement.innerHTML = "";
+  const safeFiles = Array.isArray(files) ? files : [];
+  const safeTexts = tab === "send" && Array.isArray(sharedTexts) ? sharedTexts : [];
 
-  if (!files || files.length === 0) {
+  if (safeFiles.length === 0 && safeTexts.length === 0) {
     emptyElement.style.display = "flex";
     listElement.style.display = "none";
     return;
@@ -81,7 +187,11 @@ function renderFileList(files, listElement, emptyElement, tab) {
   emptyElement.style.display = "none";
   listElement.style.display = "flex";
 
-  files.forEach((file, index) => {
+  safeTexts.forEach((textItem) => {
+    listElement.appendChild(createSharedTextRow(textItem));
+  });
+
+  safeFiles.forEach((file, index) => {
     const card = document.createElement("div");
     card.className = "file-card";
 
@@ -218,21 +328,121 @@ function initFiles() {
     });
   });
 
+  const shareModeButtons = document.querySelectorAll(".share-mode-btn");
+  const sharePaneFiles = document.getElementById("sharePaneFiles");
+  const sharePaneText = document.getElementById("sharePaneText");
+  const textShareTitle = document.getElementById("textShareTitle");
+  const textShareInput = document.getElementById("textShareInput");
+  const textShareCharCount = document.getElementById("textShareCharCount");
+  const pasteTextShareBtn = document.getElementById("pasteTextShareBtn");
+  const clearTextShareBtn = document.getElementById("clearTextShareBtn");
+  const pushTextShareBtn = document.getElementById("pushTextShareBtn");
+
+  shareModeButtons.forEach((btn) => {
+    btn.addEventListener("click", () => {
+      const mode = btn.dataset.shareMode;
+      shareModeButtons.forEach((b) => {
+        const isActive = b === btn;
+        b.classList.toggle("active", isActive);
+        b.setAttribute("aria-selected", isActive ? "true" : "false");
+      });
+      if (sharePaneFiles) sharePaneFiles.classList.toggle("active", mode === "files");
+      if (sharePaneText) sharePaneText.classList.toggle("active", mode === "text");
+      if (mode === "text" && textShareInput) {
+        textShareInput.focus();
+      }
+    });
+  });
+
+  if (textShareInput && textShareCharCount) {
+    textShareInput.addEventListener("input", () => {
+      updateTextShareCounter(textShareInput, textShareCharCount);
+    });
+  }
+
+  if (pasteTextShareBtn && textShareInput) {
+    pasteTextShareBtn.addEventListener("click", () => {
+      const clipText = clipboard.readText();
+      if (!clipText) {
+        showToast("PC clipboard has no text");
+        return;
+      }
+      textShareInput.value = clipText;
+      updateTextShareCounter(textShareInput, textShareCharCount);
+      textShareInput.focus();
+      showToast("Pasted from PC clipboard");
+    });
+  }
+
+  if (clearTextShareBtn && textShareInput) {
+    clearTextShareBtn.addEventListener("click", () => {
+      if (textShareTitle) textShareTitle.value = "";
+      textShareInput.value = "";
+      updateTextShareCounter(textShareInput, textShareCharCount);
+      textShareInput.focus();
+    });
+  }
+
+  const handlePushText = () => {
+    if (!textShareInput) return;
+    const rawText = textShareInput.value;
+    if (!rawText || !rawText.trim()) {
+      showToast("Enter or paste text before pushing");
+      textShareInput.focus();
+      return;
+    }
+
+    const customTitle = textShareTitle && textShareTitle.value.trim() ? textShareTitle.value.trim() : "";
+    const title = deriveTextTitle(rawText, customTitle);
+    const newItem = {
+      id: `text-${Date.now()}-${Math.random().toString(36).slice(2, 6)}`,
+      title,
+      content: rawText,
+      createdAt: new Date().toISOString(),
+    };
+
+    currentState.sharedTexts = [newItem, ...(currentState.sharedTexts || [])];
+    if (textShareTitle) textShareTitle.value = "";
+    textShareInput.value = "";
+    updateTextShareCounter(textShareInput, textShareCharCount);
+    renderFilesView();
+    ipcRenderer.send("dashboard:add-text", newItem);
+    showToast(`Pushed "${title}" to web page!`);
+  };
+
+  if (pushTextShareBtn) {
+    pushTextShareBtn.addEventListener("click", handlePushText);
+  }
+
+  if (textShareInput) {
+    textShareInput.addEventListener("keydown", (e) => {
+      if ((e.ctrlKey || e.metaKey) && e.key === "Enter") {
+        e.preventDefault();
+        handlePushText();
+      }
+    });
+  }
+
   if (removeAllBtn) {
     removeAllBtn.addEventListener("click", () => {
       const currentTab = getCurrentTab();
-      const count =
+      const textCount = currentTab === "send" ? (currentState.sharedTexts || []).length : 0;
+      const fileCount =
         currentTab === "send"
           ? currentState.sentFiles.length
           : currentState.receivedFiles.length;
 
-      if (count === 0) {
-        showToast("No files to remove");
+      if (fileCount === 0 && textCount === 0) {
+        showToast("No items to remove");
         return;
       }
 
+      if (currentTab === "send") {
+        currentState.sharedTexts = [];
+      }
+      renderFilesView();
       ipcRenderer.send("dashboard:remove-all", currentTab);
-      showToast(`Cleared all ${currentTab === "send" ? "shared" : "received"} files`);
+      showToast(`Cleared all ${currentTab === "send" ? "shared" : "received"} items`);
     });
   }
 }

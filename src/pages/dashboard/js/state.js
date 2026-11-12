@@ -4,6 +4,7 @@ const { clipboard } = require("electron");
 const currentState = {
   serverInfo: { ip: "127.0.0.1", port: 5199 },
   sentFiles: [],
+  sharedTexts: [],
   receivedFiles: [],
   config: null,
   devices: [],

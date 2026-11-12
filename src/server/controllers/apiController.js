@@ -4,22 +4,78 @@
 const path = require('path');
 
 /**
+ * Build serialized file items list from global.sharedFiles
+ */
+function mapSharedFiles() {
+  if (!global.sharedFiles || global.sharedFiles.length === 0) {
+    return [];
+  }
+  return global.sharedFiles.map((file) => ({
+    id: file.id,
+    fileName: file.name,
+    downloadUrl: `/download/${file.id}`,
+    size: file.size || "Unknown",
+    dateAdded: file.dateAdded || new Date().toISOString(),
+  }));
+}
+
+/**
  * Get list of shared files
  */
 function getSharedFiles(req, res) {
-  if (global.sharedFiles && global.sharedFiles.length > 0) {
-    res.json(
-      global.sharedFiles.map(file => ({
-        id: file.id,
-        fileName: file.name,
-        downloadUrl: `/download/${file.id}`,
-        size: file.size || 'Unknown',
-        dateAdded: file.dateAdded || new Date().toISOString()
+  res.json(mapSharedFiles());
+}
+
+/**
+ * Get combined shared files and shared text items
+ */
+function getSharedItems(req, res) {
+  const files = mapSharedFiles();
+  const texts = Array.isArray(global.sharedTexts)
+    ? global.sharedTexts.map((item) => ({
+        kind: "text",
+        id: item.id,
+        title: item.title || "",
+        content: typeof item.content === "string" ? item.content : "",
+        createdAt: item.createdAt || new Date().toISOString(),
+        downloadUrl: `/download-text/${encodeURIComponent(item.id)}`,
       }))
-    );
-  } else {
-    res.json([]);
+    : [];
+
+  res.json({ files, texts });
+}
+
+/**
+ * Download a shared text item as a .txt file
+ */
+function downloadSharedText(req, res) {
+  const targetId = String(req.params.id || "");
+  const textItem = Array.isArray(global.sharedTexts)
+    ? global.sharedTexts.find((item) => String(item.id) === targetId)
+    : null;
+
+  if (!textItem) {
+    return res.status(404).send("Shared text not found");
   }
+
+  const rawTitle = (textItem.title || "shared-text").toString().replace(/\.+$/, "");
+  const cleaned =
+    rawTitle
+      .replace(/[\\/:*?"<>|\r\n]+/g, " ")
+      .replace(/\s+/g, " ")
+      .trim()
+      .slice(0, 48)
+      .trim() || "shared-text";
+  const filename = /\.txt$/i.test(cleaned) ? cleaned : `${cleaned}.txt`;
+  const asciiFallback = filename.replace(/[^\x20-\x7E]/g, "_") || "shared-text.txt";
+
+  res.setHeader("Content-Type", "text/plain; charset=utf-8");
+  res.setHeader("X-Content-Type-Options", "nosniff");
+  res.setHeader(
+    "Content-Disposition",
+    `attachment; filename="${asciiFallback}"; filename*=UTF-8''${encodeURIComponent(filename)}`
+  );
+  res.send(typeof textItem.content === "string" ? textItem.content : "");
 }
 
 /**
@@ -143,6 +199,8 @@ function submitPairKey(req, res) {
 
 module.exports = {
   getSharedFiles,
+  getSharedItems,
+  downloadSharedText,
   sendNotification,
   copyToClipboard,
   handlePairCheck,

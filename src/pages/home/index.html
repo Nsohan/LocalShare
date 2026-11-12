@@ -30,13 +30,31 @@
           </div>
         </div>
 
-        <button class="refresh-action-btn" id="manualRefreshBtn" title="Check for new files">
-          <svg class="refresh-icon" id="refreshIcon" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
-            <polyline points="23 4 23 10 17 10"></polyline>
-            <polyline points="1 20 1 14 7 14"></polyline>
-            <path d="M3.51 9a9 9 0 0 1 14.85-3.36L23 10M1 14l4.64 4.36A9 9 0 0 0 20.49 15"></path>
-          </svg>
-        </button>
+        <div class="header-actions">
+          <div class="host-ip-pill" id="hostIpPill" title="Click to copy host URL">
+            <span class="host-ip-text" id="hostIpText"></span>
+            <button
+              type="button"
+              class="copy-ip-btn"
+              id="copyHostIpBtn"
+              title="Copy host URL"
+              aria-label="Copy host URL"
+            >
+              <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                <rect x="9" y="9" width="13" height="13" rx="2" ry="2"></rect>
+                <path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"></path>
+              </svg>
+            </button>
+          </div>
+
+          <button class="refresh-action-btn" id="manualRefreshBtn" title="Check for new files">
+            <svg class="refresh-icon" id="refreshIcon" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+              <polyline points="23 4 23 10 17 10"></polyline>
+              <polyline points="1 20 1 14 7 14"></polyline>
+              <path d="M3.51 9a9 9 0 0 1 14.85-3.36L23 10M1 14l4.64 4.36A9 9 0 0 0 20.49 15"></path>
+            </svg>
+          </button>
+        </div>
       </header>
 
       <!-- Navigation Tabs -->
@@ -58,14 +76,6 @@
             <line x1="12" y1="3" x2="12" y2="15"></line>
           </svg>
           <span>Send Files</span>
-        </button>
-
-        <button class="tab-button" data-tab="clipboard">
-          <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
-            <path d="M16 4h2a2 2 0 0 1 2 2v14a2 2 0 0 1-2 2H6a2 2 0 0 1-2-2V6a2 2 0 0 1 2-2h2"></path>
-            <rect x="8" y="2" width="8" height="4" rx="1" ry="1"></rect>
-          </svg>
-          <span>Send Text</span>
         </button>
 
         <button class="tab-button" data-tab="pair">
@@ -107,8 +117,8 @@
                 <line x1="9" y1="15" x2="15" y2="15"></line>
               </svg>
             </div>
-            <h3>Waiting for files from PC</h3>
-            <p>No files are being shared right now. When the host PC adds files, they will appear here automatically.</p>
+            <h3>Waiting for files or text from PC</h3>
+            <p>No files or text are being shared right now. When the host PC shares files or text, they will appear here automatically.</p>
             <div class="sync-status">
               <span class="sync-pulse"></span>
               <span>Live sync active</span>
@@ -140,12 +150,21 @@
                 </button>
 
                 <!-- Mobile Camera Capture Option -->
-                <button class="btn btn-secondary mobile-only" id="cameraBtn">
+                <button class="btn btn-secondary mobile-only" id="cameraBtn" type="button">
                   <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
                     <path d="M23 19a2 2 0 0 1-2 2H3a2 2 0 0 1-2-2V8a2 2 0 0 1 2-2h4l2-3h6l2 3h4a2 2 0 0 1 2 2z"></path>
                     <circle cx="12" cy="13" r="4"></circle>
                   </svg>
                   <span>Take Photo</span>
+                </button>
+
+                <!-- Send Text to PC Clipboard -->
+                <button class="btn btn-secondary" id="openSendTextBtn" type="button">
+                  <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                    <path d="M16 4h2a2 2 0 0 1 2 2v14a2 2 0 0 1-2 2H6a2 2 0 0 1-2-2V6a2 2 0 0 1 2-2h2"></path>
+                    <rect x="8" y="2" width="8" height="4" rx="1" ry="1"></rect>
+                  </svg>
+                  <span>Send Text</span>
                 </button>
               </div>
 
@@ -178,37 +197,7 @@
           </div>
         </section>
 
-        <!-- Tab 3: Send text to PC clipboard -->
-        <section class="tab-content" id="paneClipboard">
-          <div class="upload-card">
-            <div class="clipboard-box">
-              <div class="upload-icon-bubble">
-                <svg width="36" height="36" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
-                  <path d="M16 4h2a2 2 0 0 1 2 2v14a2 2 0 0 1-2 2H6a2 2 0 0 1-2-2V6a2 2 0 0 1 2-2h2"></path>
-                  <rect x="8" y="2" width="8" height="4" rx="1" ry="1"></rect>
-                </svg>
-              </div>
-              <h3>Send Text to PC Clipboard</h3>
-              <p>Type or paste any text or link. It will instantly copy to the host PC's clipboard (Ctrl+V ready).</p>
-
-              <div class="text-input-wrap">
-                <textarea id="clipboardInput" placeholder="Paste links, notes, or text here to copy directly to your computer..." rows="5"></textarea>
-              </div>
-
-              <div class="clipboard-actions">
-                <button class="btn btn-primary w-full" id="sendClipboardBtn">
-                  <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
-                    <line x1="22" y1="2" x2="11" y2="13"></line>
-                    <polygon points="22 2 15 22 11 13 2 9 22 2"></polygon>
-                  </svg>
-                  <span>Copy to PC Clipboard</span>
-                </button>
-              </div>
-            </div>
-          </div>
-        </section>
-
-        <!-- Tab 4: Pair with PC using 6-digit key -->
+        <!-- Tab 3: Pair with PC using 6-digit key -->
         <section class="tab-content" id="panePair">
           <div class="upload-card">
             <div class="clipboard-box">
@@ -255,6 +244,110 @@
       <footer class="web-footer">
         <p>LocalShare &bull; Direct LAN Peer-to-Peer Transfer</p>
       </footer>
+    </div>
+
+    <!-- Scrollable Text Preview Modal -->
+    <div
+      class="text-modal-overlay"
+      id="textPreviewModal"
+      aria-hidden="true"
+      role="dialog"
+      aria-modal="true"
+      aria-labelledby="textPreviewTitle"
+    >
+      <div class="text-modal-card">
+        <div class="text-modal-header">
+          <div class="text-modal-title-group">
+            <span class="text-modal-badge">TXT</span>
+            <div class="text-modal-headings">
+              <h3 class="text-modal-title" id="textPreviewTitle">Shared Text</h3>
+              <span class="text-modal-meta" id="textPreviewMeta">0 characters &bull; 0 lines</span>
+            </div>
+          </div>
+          <button
+            type="button"
+            class="text-modal-close"
+            id="closeTextPreviewBtn"
+            title="Close preview"
+            aria-label="Close preview"
+          >
+            &times;
+          </button>
+        </div>
+
+        <div class="text-modal-body">
+          <pre class="text-preview-content" id="textPreviewContent"></pre>
+        </div>
+
+        <div class="text-modal-footer">
+          <button type="button" class="btn btn-outline" id="cancelTextPreviewBtn">Cancel</button>
+          <button type="button" class="btn btn-secondary" id="downloadTextPreviewBtn">
+            <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+              <path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"></path>
+              <polyline points="7 10 12 15 17 10"></polyline>
+              <line x1="12" y1="15" x2="12" y2="3"></line>
+            </svg>
+            <span>Download</span>
+          </button>
+          <button type="button" class="btn btn-primary" id="copyTextPreviewBtn">
+            <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+              <rect x="9" y="9" width="13" height="13" rx="2" ry="2"></rect>
+              <path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"></path>
+            </svg>
+            <span id="copyTextPreviewLabel">Copy</span>
+          </button>
+        </div>
+      </div>
+    </div>
+
+    <!-- Send Text to PC Clipboard Modal -->
+    <div
+      class="text-modal-overlay"
+      id="sendTextModal"
+      aria-hidden="true"
+      role="dialog"
+      aria-modal="true"
+      aria-labelledby="sendTextModalTitle"
+    >
+      <div class="text-modal-card">
+        <div class="text-modal-header">
+          <div class="text-modal-title-group">
+            <span class="text-modal-badge">TXT</span>
+            <div class="text-modal-headings">
+              <h3 class="text-modal-title" id="sendTextModalTitle">Send Text to PC Clipboard</h3>
+              <span class="text-modal-meta">Instantly copies to host PC (Ctrl+V ready)</span>
+            </div>
+          </div>
+          <button
+            type="button"
+            class="text-modal-close"
+            id="closeSendTextBtn"
+            title="Close"
+            aria-label="Close"
+          >
+            &times;
+          </button>
+        </div>
+
+        <div class="text-modal-body send-text-modal-body">
+          <textarea
+            id="clipboardInput"
+            placeholder="Paste links, notes, or text here to copy directly to your computer..."
+            rows="6"
+          ></textarea>
+        </div>
+
+        <div class="text-modal-footer">
+          <button type="button" class="btn btn-outline" id="cancelSendTextBtn">Cancel</button>
+          <button type="button" class="btn btn-primary" id="sendClipboardBtn">
+            <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+              <line x1="22" y1="2" x2="11" y2="13"></line>
+              <polygon points="22 2 15 22 11 13 2 9 22 2"></polygon>
+            </svg>
+            <span>Copy to PC Clipboard</span>
+          </button>
+        </div>
+      </div>
     </div>
 
     <script src="script.js"></script>

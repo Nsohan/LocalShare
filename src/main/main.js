@@ -62,6 +62,7 @@ const gotTheLock = app.requestSingleInstanceLock();
 // Global variables
 let serverProcess = null;
 let sharedFiles = [];
+let sharedTexts = [];
 let tray = null;
 const deviceRuntimeMap = new Map();
 let deviceWatcher = null;
@@ -292,6 +293,7 @@ function getDashboardState() {
   const ip = netInfo?.address || getLocalIP();
   return {
     sentFiles: getFormattedFiles(),
+    sharedTexts,
     receivedFiles: getConfig("receivedFiles") || [],
     devices: getDevicesWithRuntime(),
     serverInfo: {
@@ -317,6 +319,22 @@ function broadcastDashboardState() {
       sentFiles: getFormattedFiles(),
       receivedFiles: getConfig("receivedFiles") || [],
     });
+  }
+}
+
+/**
+ * Sync in-memory sharedTexts to the running Express child server process
+ */
+function syncTextsToServer(targetProcess = serverProcess) {
+  if (targetProcess && targetProcess.connected) {
+    try {
+      targetProcess.send({
+        type: "sync-shared-texts",
+        sharedTexts,
+      });
+    } catch (err) {
+      logger.error("Error syncing shared texts to server:", err);
+    }
   }
 }
 
@@ -423,7 +441,13 @@ async function startServer(filePaths = [], port = null) {
     });
 
     // Handle IPC messages from child server process
+    const activeServer = serverProcess;
     serverProcess.on("message", (msg) => {
+      if (msg && msg.type === "server-ready") {
+        syncTextsToServer(activeServer);
+        return;
+      }
+
       if (msg && msg.type === "files-received" && Array.isArray(msg.files)) {
         logger.info("Server process reported received files:", msg.files);
         const currentReceived = getConfig("receivedFiles") || [];
@@ -674,12 +698,66 @@ if (!gotTheLock) {
     });
   });
 
-  // Remove all files
+  // Push text snippet to web clients
+  ipcMain.on("dashboard:add-text", async (event, payload) => {
+    try {
+      const content =
+        payload && typeof payload.content === "string" ? payload.content : "";
+      if (!content.trim()) return;
+
+      const item = {
+        id:
+          (payload && payload.id) ||
+          `text-${Date.now()}-${Math.random().toString(36).slice(2, 6)}`,
+        title:
+          payload && typeof payload.title === "string"
+            ? payload.title.trim()
+            : "",
+        content,
+        createdAt:
+          (payload && payload.createdAt) || new Date().toISOString(),
+      };
+
+      sharedTexts = [
+        item,
+        ...sharedTexts.filter((existing) => String(existing.id) !== String(item.id)),
+      ];
+
+      if (!serverProcess || !serverProcess.connected) {
+        await startServer(sharedFiles);
+      } else {
+        syncTextsToServer();
+      }
+      broadcastDashboardState();
+    } catch (err) {
+      logger.error("Error adding shared text:", err);
+    }
+  });
+
+  // Remove single shared text snippet
+  ipcMain.on("dashboard:remove-text", (event, textId) => {
+    try {
+      const targetId = String(textId || "");
+      sharedTexts = sharedTexts.filter((t) => String(t.id) !== targetId);
+      syncTextsToServer();
+      broadcastDashboardState();
+    } catch (err) {
+      logger.error("Error removing shared text:", err);
+    }
+  });
+
+  // Remove all shared/received items
   ipcMain.on("dashboard:remove-all", async (event, tab) => {
     try {
       if (tab === "send" || !tab) {
+        const hadFiles = sharedFiles.length > 0;
         sharedFiles.length = 0;
-        await startServer(sharedFiles);
+        sharedTexts = [];
+        if (hadFiles || !serverProcess || !serverProcess.connected) {
+          await startServer(sharedFiles);
+        } else {
+          syncTextsToServer();
+        }
         updateTrayMenu(sharedFiles);
         broadcastDashboardState();
       } else if (tab === "received") {
