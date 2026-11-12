@@ -1,0 +1,110 @@
+* {
+  box-sizing: border-box;
+  margin: 0;
+  padding: 0;
+  user-select: none;
+}
+
+html,
+body {
+  background: #24262b;
+  color: #f1f5f9;
+  font-family: "Segoe UI", -apple-system, BlinkMacSystemFont, sans-serif;
+  font-size: 13px;
+  line-height: 1.3;
+  overflow: hidden;
+}
+
+.tray-menu {
+  display: inline-flex;
+  flex-direction: column;
+  min-width: 210px;
+  max-width: 320px;
+  padding: 5px;
+  background: #24262b;
+  border: 1px solid #3c404b;
+}
+
+.menu-separator {
+  height: 1px;
+  margin: 4px 6px;
+  background: #383c46;
+}
+
+.menu-item {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  width: 100%;
+  min-height: 28px;
+  padding: 5px 10px 5px 8px;
+  border: none;
+  border-radius: 5px;
+  background: transparent;
+  color: #f1f5f9;
+  font-family: inherit;
+  font-size: 13px;
+  text-align: left;
+  cursor: default;
+  transition: background-color 0.08s ease;
+}
+
+.menu-item:hover:not(.disabled),
+.menu-item.active-parent:not(.disabled) {
+  background: #343944;
+}
+
+.menu-item.disabled {
+  color: #7e8695;
+}
+
+.menu-item.disabled .menu-icon {
+  opacity: 0.55;
+}
+
+.menu-icon-slot {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 16px;
+  height: 16px;
+  flex-shrink: 0;
+}
+
+.menu-icon {
+  width: 16px;
+  height: 16px;
+  display: block;
+}
+
+.menu-check {
+  font-size: 12px;
+  font-weight: 700;
+  color: #e2e8f0;
+  line-height: 1;
+}
+
+.menu-label {
+  flex: 1;
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.menu-arrow {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 12px;
+  height: 12px;
+  margin-left: 6px;
+  color: #94a3b8;
+  flex-shrink: 0;
+}
+
+.menu-item:hover:not(.disabled) .menu-arrow,
+.menu-item.active-parent:not(.disabled) .menu-arrow {
+  color: #e2e8f0;
+}
+

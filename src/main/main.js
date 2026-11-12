@@ -23,6 +23,8 @@ const {
   updateTrayMenu,
   pollAdbDevices,
   updateTrayAdbDevices,
+  syncTrayPairedDevices,
+  destroyTrayMenuWindows,
 } = require("./tray");
 const {
   filterValidFiles,
@@ -248,6 +250,7 @@ function upsertPairedDevice(incomingDevice) {
  * Emit lightweight live device runtime status updates without forcing full QR re-render.
  */
 function emitDeviceStatusUpdate() {
+  syncTrayPairedDevices();
   const win = getDashboardWindow();
   if (win && !win.isDestroyed()) {
     const netInfo = getLocalNetworkInfo();
@@ -312,6 +315,7 @@ function getDashboardState() {
  * Broadcast updated state to the dashboard window
  */
 function broadcastDashboardState() {
+  syncTrayPairedDevices();
   const win = getDashboardWindow();
   if (win && !win.isDestroyed()) {
     win.webContents.send("dashboard:state-updated", getDashboardState());
@@ -1319,6 +1323,7 @@ if (!gotTheLock) {
           addFilesToShare,
           removeSharedFile,
           broadcastDashboardState,
+          getPairedDevices: getDevicesWithRuntime,
         },
       );
 
@@ -1361,6 +1366,7 @@ if (!gotTheLock) {
   app.on("before-quit", () => {
     app.isQuiting = true;
     logger.info("App quitting...");
+    destroyTrayMenuWindows();
     deviceWatcher?.stop();
     pairingManager.stopAll();
     scrcpyManager.stopAllSessions();

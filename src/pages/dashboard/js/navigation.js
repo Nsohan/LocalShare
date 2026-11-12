@@ -4,7 +4,7 @@ const VIEW_TITLES = {
   files: "Files & Sharing",
   connect: "Connect & QR Code",
   devices: "Your Devices",
-  mirror: "Screen Mirror & Remote Control",
+  mirror: "ADB Devices",
   api: "API Explorer",
   settings: "Application Settings",
   about: "About LocalShare",

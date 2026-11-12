@@ -5,13 +5,13 @@
 const {
   app,
   Tray,
-  Menu,
   shell,
   dialog,
   Notification,
   clipboard,
 } = require("electron");
 const path = require("path");
+const { pathToFileURL } = require("url");
 const fs = require("fs");
 const os = require("os");
 const logger = require("../config/logger");
@@ -24,11 +24,18 @@ const {
 } = require("./utils");
 const { getConfig, setConfig } = require("../config/config");
 const scrcpyManager = require("./scrcpy");
+const {
+  showTrayMenu,
+  closeAllTrayMenus,
+  prewarmTrayMenu,
+  destroyTrayMenuWindows,
+} = require("./trayMenuWindow");
 
 // Declare tray and callbacks as module globals
 let tray = null;
 let currentSharedFiles = [];
 let connectedAdbDevices = [];
+let latestMenuTemplate = [];
 let adbPollInterval = null;
 let clearAllSharedFilesCallback = null;
 let startServerCallback = null;
@@ -36,6 +43,30 @@ let updateTrayMenuCallback = null;
 let addFilesCallback = null;
 let removeFileCallback = null;
 let broadcastStateCallback = null;
+let getPairedDevicesCallback = null;
+let lastPairedDevicesSig = "";
+const trayMenuIconCache = new Map();
+
+/**
+ * Resolves and caches a file:// URL for a tray menu icon (prefers @2x for crisp HiDPI rendering)
+ * @param {string} name - Icon basename inside src/assets/tray/
+ * @returns {string|undefined}
+ */
+function getTrayMenuIconUrl(name) {
+  if (trayMenuIconCache.has(name)) {
+    return trayMenuIconCache.get(name);
+  }
+  const hiResPath = path.join(__dirname, "..", "assets", "tray", `${name}@2x.png`);
+  const stdPath = path.join(__dirname, "..", "assets", "tray", `${name}.png`);
+  const chosenPath = fs.existsSync(hiResPath)
+    ? hiResPath
+    : fs.existsSync(stdPath)
+      ? stdPath
+      : null;
+  const url = chosenPath ? pathToFileURL(chosenPath).href : undefined;
+  trayMenuIconCache.set(name, url);
+  return url;
+}
 
 /**
  * Explicitly update connected ADB devices from IPC or scan
@@ -119,6 +150,7 @@ function createTray(
   addFilesCallback = options.addFilesToShare || null;
   removeFileCallback = options.removeSharedFile || null;
   broadcastStateCallback = options.broadcastDashboardState || null;
+  getPairedDevicesCallback = options.getPairedDevices || null;
 
   try {
     const appNativeImg = getAppNativeImage();
@@ -135,20 +167,24 @@ function createTray(
 
     // Double-click opens the dashboard
     tray.on("double-click", () => {
+      closeAllTrayMenus();
       logger.info("Tray double-clicked, opening dashboard");
       showDashboardWindow();
     });
 
     // Single left-click also focuses dashboard on Windows
     tray.on("click", () => {
+      closeAllTrayMenus();
       if (process.platform === "win32") {
         showDashboardWindow();
       }
     });
 
-    // Right-click or hover refreshes device scan
-    tray.on("right-click", () => {
+    // Right-click refreshes device scan and opens the custom cascading tray menu
+    tray.on("right-click", (_event, bounds) => {
       pollAdbDevices();
+      updateTrayMenu(currentSharedFiles);
+      showTrayMenu(latestMenuTemplate, bounds);
     });
 
     // Start background polling
@@ -157,13 +193,56 @@ function createTray(
       pollAdbDevices();
     }
 
-    // Set up menu items
+    // Set up menu items and pre-warm custom popup window
     updateTrayMenu(currentSharedFiles);
+    prewarmTrayMenu();
     logger.info("Tray icon created successfully");
     return tray;
   } catch (error) {
     logger.error("Error creating tray icon:", error);
     return null;
+  }
+}
+
+function getSafeDeviceUrl(rawUrl) {
+  if (typeof rawUrl !== "string" || !rawUrl.trim()) return null;
+  let candidate = rawUrl.trim();
+  if (!/^[a-zA-Z][a-zA-Z0-9+.-]*:/.test(candidate)) {
+    candidate = `http://${candidate}`;
+  }
+  try {
+    const parsed = new URL(candidate);
+    if (parsed.protocol !== "http:" && parsed.protocol !== "https:") {
+      return null;
+    }
+    return parsed.origin;
+  } catch {
+    return null;
+  }
+}
+
+function getPairedDevicesList() {
+  const list = getPairedDevicesCallback
+    ? getPairedDevicesCallback()
+    : getConfig("devices");
+  return Array.isArray(list) ? list : [];
+}
+
+function getPairedDevicesSignature(devices) {
+  return devices
+    .map((d) => `${d?.id || ""}|${d?.name || ""}|${d?.status || ""}|${d?.url || ""}`)
+    .join(";");
+}
+
+/**
+ * Refreshes the tray menu only when the paired devices list or status changes
+ */
+function syncTrayPairedDevices() {
+  if (!tray) return;
+  const pairedDevices = getPairedDevicesList();
+  const sig = getPairedDevicesSignature(pairedDevices);
+  if (sig !== lastPairedDevicesSig) {
+    updateTrayMenu(currentSharedFiles);
   }
 }
 
@@ -215,9 +294,10 @@ function updateTrayMenu(sharedFiles = null) {
     if (primaryDevice) {
       mirrorSubmenu = [
         {
-          label: "📳 Open Mirror Dashboard",
+          label: "Open ADB Devices",
+          iconUrl: getTrayMenuIconUrl("phone"),
           click: () => {
-            logger.info("Tray: Opening Screen Mirror dashboard");
+            logger.info("Tray: Opening ADB Devices dashboard");
             const win = showDashboardWindow();
             if (win && !win.isDestroyed()) {
               win.webContents.send("dashboard:switch-tab", "mirror");
@@ -226,7 +306,8 @@ function updateTrayMenu(sharedFiles = null) {
         },
         { type: "separator" },
         {
-          label: `⚡ Live Screen Mirror`,
+          label: "Live Screen Mirror",
+          iconUrl: getTrayMenuIconUrl("mirror"),
           click: () => {
             logger.info(
               "Tray: Directly starting Live Mirror for",
@@ -246,7 +327,8 @@ function updateTrayMenu(sharedFiles = null) {
           },
         },
         {
-          label: `🕶️ Stealth Mode (Screen Off)`,
+          label: "Stealth Mode (Screen Off)",
+          iconUrl: getTrayMenuIconUrl("stealth"),
           click: () => {
             logger.info(
               "Tray: Directly starting Stealth Mirror for",
@@ -268,7 +350,8 @@ function updateTrayMenu(sharedFiles = null) {
           },
         },
         {
-          label: `⌨️ Keyboard & Mouse Control (UHID)`,
+          label: "Keyboard & Mouse Control (UHID)",
+          iconUrl: getTrayMenuIconUrl("keyboard"),
           click: () => {
             logger.info(
               "Tray: Directly starting UHID for",
@@ -293,7 +376,8 @@ function updateTrayMenu(sharedFiles = null) {
           },
         },
         {
-          label: `📸 Take Screenshots`,
+          label: "Take Screenshots",
+          iconUrl: getTrayMenuIconUrl("screenshot"),
           click: async () => {
             logger.info(
               "Tray: Directly taking screenshot for",
@@ -323,7 +407,8 @@ function updateTrayMenu(sharedFiles = null) {
           },
         },
         {
-          label: `🎥 Record Screen to MP4`,
+          label: "Record Screen to MP4",
+          iconUrl: getTrayMenuIconUrl("record"),
           click: () => {
             logger.info(
               "Tray: Directly recording screen for",
@@ -344,7 +429,8 @@ function updateTrayMenu(sharedFiles = null) {
           },
         },
         {
-          label: `📷 Phone HD Webcam Mode`,
+          label: "Phone HD Webcam Mode",
+          iconUrl: getTrayMenuIconUrl("webcam"),
           click: () => {
             logger.info(
               "Tray: Directly launching webcam mode for",
@@ -367,7 +453,8 @@ function updateTrayMenu(sharedFiles = null) {
         },
         { type: "separator" },
         {
-          label: "📶 Connect via Wireless IP...",
+          label: "Connect via Wireless IP...",
+          iconUrl: getTrayMenuIconUrl("wifi"),
           click: () => {
             const win = showDashboardWindow();
             if (win && !win.isDestroyed()) {
@@ -379,7 +466,8 @@ function updateTrayMenu(sharedFiles = null) {
     } else {
       mirrorSubmenu = [
         {
-          label: "📳 Open Mirror Dashboard",
+          label: "Open ADB Devices",
+          iconUrl: getTrayMenuIconUrl("phone"),
           click: () => {
             const win = showDashboardWindow();
             if (win && !win.isDestroyed()) {
@@ -389,11 +477,13 @@ function updateTrayMenu(sharedFiles = null) {
         },
         { type: "separator" },
         {
-          label: "⚠️ No Device Connected",
+          label: "No Device Connected",
+          iconUrl: getTrayMenuIconUrl("warning"),
           enabled: false,
         },
         {
-          label: "🔄 Scan for Connected Devices",
+          label: "Scan for Connected Devices",
+          iconUrl: getTrayMenuIconUrl("refresh"),
           click: async () => {
             await pollAdbDevices();
             if (notificationsEnabled) {
@@ -409,7 +499,8 @@ function updateTrayMenu(sharedFiles = null) {
           },
         },
         {
-          label: "📶 Connect via Wireless IP...",
+          label: "Connect via Wireless IP...",
+          iconUrl: getTrayMenuIconUrl("wifi"),
           click: () => {
             const win = showDashboardWindow();
             if (win && !win.isDestroyed()) {
@@ -421,26 +512,37 @@ function updateTrayMenu(sharedFiles = null) {
     }
 
     const menuTemplate = [
-      // Status Header (Click to copy server URL)
+      // Status Header & Quick Connection Submenu (Shows on Hover)
       {
-        label: `🟢 LocalShare Active (Port ${port})`,
-        click: () => {
-          clipboard.writeText(serverUrl);
-          logger.info("Copied server URL to clipboard from header:", serverUrl);
-          if (notificationsEnabled) {
-            new Notification({
-              title: "LocalShare",
-              body: `Server link copied: ${serverUrl}`,
-              icon: getAppIcon(),
-            }).show();
-          }
-        },
+        label: `Active (${ip}:${port})`,
+        iconUrl: getTrayMenuIconUrl("active"),
+        submenu: [
+          {
+            label: "Show QR Code",
+            iconUrl: getTrayMenuIconUrl("qr"),
+            click: () => {
+              logger.info("Showing QR code in dashboard");
+              const win = showDashboardWindow();
+              if (win && !win.isDestroyed())
+                win.webContents.send("dashboard:switch-tab", "connect");
+            },
+          },
+          {
+            label: "Open in Browser",
+            iconUrl: getTrayMenuIconUrl("browser"),
+            click: () => {
+              logger.info("Opening in browser");
+              shell.openExternal(`http://localhost:${port}`);
+            },
+          },
+        ],
       },
       { type: "separator" },
 
       // Main Navigation & Fast File Operations
       {
-        label: "📊 Open Dashboard",
+        label: "Open Dashboard",
+        iconUrl: getTrayMenuIconUrl("dashboard"),
         click: () => {
           logger.info("Opening dashboard from menu");
           const win = showDashboardWindow();
@@ -449,7 +551,8 @@ function updateTrayMenu(sharedFiles = null) {
         },
       },
       {
-        label: "➕ Share Files...",
+        label: "Share Files...",
+        iconUrl: getTrayMenuIconUrl("add"),
         click: async () => {
           logger.info("Tray: Share Files clicked");
           if (addFilesCallback) {
@@ -460,7 +563,8 @@ function updateTrayMenu(sharedFiles = null) {
         },
       },
       {
-        label: "📂 Open Received Folder",
+        label: "Open Received Folder",
+        iconUrl: getTrayMenuIconUrl("folder"),
         click: () => {
           const receivedDir = path.join(
             os.homedir(),
@@ -476,33 +580,131 @@ function updateTrayMenu(sharedFiles = null) {
       },
       { type: "separator" },
 
-      // Screen Mirroring & Control Submenu (Shows on Hover)
+      // ADB Devices & Control Submenu (Shows on Hover)
       {
         label: deviceName
-          ? `📳 Screen Mirroring (${deviceName})`
-          : "📳 Screen Mirroring (No Device)",
+          ? `ADB Devices (${deviceName})`
+          : "ADB Devices (No Device)",
+        iconUrl: getTrayMenuIconUrl("phone"),
         submenu: mirrorSubmenu,
       },
-      { type: "separator" },
-
-      // Quick Connection & Link Actions
-      {
-        label: "📱 Show QR Code",
-        click: () => {
-          logger.info("Showing QR code in dashboard");
-          const win = showDashboardWindow();
-          if (win && !win.isDestroyed())
-            win.webContents.send("dashboard:switch-tab", "connect");
-        },
-      },
-      {
-        label: "🌐 Open in Browser",
-        click: () => {
-          logger.info("Opening in browser");
-          shell.openExternal(`http://localhost:${port}`);
-        },
-      },
     ];
+
+    // Other Devices (Paired Devices) Submenu
+    const pairedDevices = getPairedDevicesList();
+    lastPairedDevicesSig = getPairedDevicesSignature(pairedDevices);
+
+    const otherDevicesSubmenu = [
+      {
+        label: "Open Paired Devices",
+        iconUrl: getTrayMenuIconUrl("phone"),
+        click: () => {
+          logger.info("Tray: Opening Paired Devices dashboard");
+          const win = showDashboardWindow();
+          if (win && !win.isDestroyed()) {
+            win.webContents.send("dashboard:switch-tab", "devices");
+          }
+        },
+      },
+      { type: "separator" },
+    ];
+
+    if (pairedDevices.length > 0) {
+      pairedDevices.slice(0, 15).forEach((device) => {
+        const devName = device.name || device.model || device.ip || "Paired Device";
+        const isOnline =
+          device.status === "connected" || device.status === "online";
+        const statusText = isOnline
+          ? "Online"
+          : device.status === "checking"
+            ? "Checking..."
+            : "Offline";
+        const fallbackUrl = device.ip
+          ? `http://${device.ip}:${getConfig("deviceScanPort") || 8000}`
+          : "";
+        const safeUrl = getSafeDeviceUrl(device.url || fallbackUrl);
+
+        otherDevicesSubmenu.push({
+          label: `${devName} (${statusText})`,
+          iconUrl: getTrayMenuIconUrl(isOnline ? "active" : "phone"),
+          submenu: [
+            {
+              label: "Open in Browser",
+              iconUrl: getTrayMenuIconUrl("browser"),
+              enabled: Boolean(safeUrl),
+              click: () => {
+                if (safeUrl) {
+                  logger.info("Tray: Opening paired device in browser:", safeUrl);
+                  shell.openExternal(safeUrl);
+                }
+              },
+            },
+            {
+              label: "Copy Device URL",
+              iconUrl: getTrayMenuIconUrl("copy"),
+              enabled: Boolean(safeUrl),
+              click: () => {
+                if (safeUrl) {
+                  clipboard.writeText(safeUrl);
+                  logger.info("Tray: Copied paired device URL:", safeUrl);
+                  if (notificationsEnabled) {
+                    new Notification({
+                      title: "LocalShare",
+                      body: `Device URL copied: ${safeUrl}`,
+                      icon: getAppIcon(),
+                    }).show();
+                  }
+                }
+              },
+            },
+            {
+              label: "View in Dashboard",
+              iconUrl: getTrayMenuIconUrl("dashboard"),
+              click: () => {
+                const win = showDashboardWindow();
+                if (win && !win.isDestroyed()) {
+                  win.webContents.send("dashboard:switch-tab", "devices");
+                }
+              },
+            },
+          ],
+        });
+      });
+
+      if (pairedDevices.length > 15) {
+        otherDevicesSubmenu.push({
+          label: `... and ${pairedDevices.length - 15} more devices`,
+          enabled: false,
+        });
+      }
+    } else {
+      otherDevicesSubmenu.push(
+        {
+          label: "No Paired Devices",
+          iconUrl: getTrayMenuIconUrl("warning"),
+          enabled: false,
+        },
+        {
+          label: "Pair via QR Code...",
+          iconUrl: getTrayMenuIconUrl("qr"),
+          click: () => {
+            const win = showDashboardWindow();
+            if (win && !win.isDestroyed()) {
+              win.webContents.send("dashboard:switch-tab", "connect");
+            }
+          },
+        },
+      );
+    }
+
+    menuTemplate.push({
+      label:
+        pairedDevices.length > 0
+          ? `Other Devices (${pairedDevices.length})`
+          : "Other Devices (No Device)",
+      iconUrl: getTrayMenuIconUrl("phone"),
+      submenu: otherDevicesSubmenu,
+    });
 
     // Shared Files Section
     if (fileCount > 0) {
@@ -512,16 +714,19 @@ function updateTrayMenu(sharedFiles = null) {
           const fileName = path.basename(filePath);
           return {
             label: `${index + 1}. ${fileName}`,
+            iconUrl: getTrayMenuIconUrl("files"),
             submenu: [
               {
-                label: "📂 Show in Folder",
+                label: "Show in Folder",
+                iconUrl: getTrayMenuIconUrl("folder"),
                 click: () => {
                   logger.info("Showing in folder:", filePath);
                   shell.showItemInFolder(filePath);
                 },
               },
               {
-                label: "📋 Copy Download Link",
+                label: "Copy Download Link",
+                iconUrl: getTrayMenuIconUrl("copy"),
                 click: () => {
                   const downloadUrl = `${serverUrl}/download/${index}`;
                   clipboard.writeText(downloadUrl);
@@ -536,7 +741,8 @@ function updateTrayMenu(sharedFiles = null) {
                 },
               },
               {
-                label: "❌ Remove File",
+                label: "Remove File",
+                iconUrl: getTrayMenuIconUrl("exit"),
                 click: async () => {
                   logger.info("Removing file from tray:", filePath);
                   if (removeFileCallback) {
@@ -557,7 +763,8 @@ function updateTrayMenu(sharedFiles = null) {
 
       filesSubmenu.push({ type: "separator" });
       filesSubmenu.push({
-        label: "🗑️ Remove All Shared Files",
+        label: "Remove All Shared Files",
+        iconUrl: getTrayMenuIconUrl("trash"),
         click: async () => {
           logger.info("Tray: Remove All Shared Files clicked");
           const result = await dialog.showMessageBox({
@@ -598,7 +805,8 @@ function updateTrayMenu(sharedFiles = null) {
       menuTemplate.push(
         { type: "separator" },
         {
-          label: `📁 Shared Files (${fileCount})`,
+          label: `Shared Files (${fileCount})`,
+          iconUrl: getTrayMenuIconUrl("folder"),
           submenu: filesSubmenu,
         },
       );
@@ -606,57 +814,66 @@ function updateTrayMenu(sharedFiles = null) {
       menuTemplate.push(
         { type: "separator" },
         {
-          label: "📁 No files currently shared",
+          label: "No files currently shared",
+          iconUrl: getTrayMenuIconUrl("folder"),
           enabled: false,
         },
       );
     }
 
-    // Live Quick Settings Checkboxes
+    // Settings Submenu & Exit
     menuTemplate.push(
       { type: "separator" },
       {
-        label: "Desktop Notifications",
-        type: "checkbox",
-        checked: notificationsEnabled,
-        click: (menuItem) => {
-          const enabled = menuItem.checked;
-          setConfig("notifications", enabled);
-          logger.info("Tray toggled notifications:", enabled);
-          updateTrayMenu(currentSharedFiles);
-          if (broadcastStateCallback) broadcastStateCallback();
-        },
-      },
-      {
-        label: "Start with Windows",
-        type: "checkbox",
-        checked: autostartEnabled,
-        click: (menuItem) => {
-          const enabled = menuItem.checked;
-          setConfig("autostart", enabled);
-          app.setLoginItemSettings({
-            openAtLogin: enabled,
-            path: process.execPath,
-            args: [],
-          });
-          logger.info("Tray toggled autostart:", enabled);
-          updateTrayMenu(currentSharedFiles);
-          if (broadcastStateCallback) broadcastStateCallback();
-        },
+        label: "Settings",
+        iconUrl: getTrayMenuIconUrl("settings"),
+        submenu: [
+          {
+            label: "Open Settings",
+            iconUrl: getTrayMenuIconUrl("settings"),
+            click: () => {
+              logger.info("Opening settings in dashboard");
+              const win = showDashboardWindow();
+              if (win && !win.isDestroyed())
+                win.webContents.send("dashboard:switch-tab", "settings");
+            },
+          },
+          { type: "separator" },
+          {
+            label: "Desktop Notifications",
+            type: "checkbox",
+            checked: notificationsEnabled,
+            click: (menuItem) => {
+              const enabled = menuItem.checked;
+              setConfig("notifications", enabled);
+              logger.info("Tray toggled notifications:", enabled);
+              updateTrayMenu(currentSharedFiles);
+              if (broadcastStateCallback) broadcastStateCallback();
+            },
+          },
+          {
+            label: "Start with Windows",
+            type: "checkbox",
+            checked: autostartEnabled,
+            click: (menuItem) => {
+              const enabled = menuItem.checked;
+              setConfig("autostart", enabled);
+              app.setLoginItemSettings({
+                openAtLogin: enabled,
+                path: process.execPath,
+                args: [],
+              });
+              logger.info("Tray toggled autostart:", enabled);
+              updateTrayMenu(currentSharedFiles);
+              if (broadcastStateCallback) broadcastStateCallback();
+            },
+          },
+        ],
       },
       { type: "separator" },
       {
-        label: "⚙️ Settings",
-        click: () => {
-          logger.info("Opening settings in dashboard");
-          const win = showDashboardWindow();
-          if (win && !win.isDestroyed())
-            win.webContents.send("dashboard:switch-tab", "settings");
-        },
-      },
-      { type: "separator" },
-      {
-        label: "❌ Exit LocalShare",
+        label: "Exit LocalShare",
+        iconUrl: getTrayMenuIconUrl("exit"),
         click: () => {
           logger.info("Exit clicked, quitting app");
           app.quit();
@@ -664,8 +881,7 @@ function updateTrayMenu(sharedFiles = null) {
       },
     );
 
-    const contextMenu = Menu.buildFromTemplate(menuTemplate);
-    tray.setContextMenu(contextMenu);
+    latestMenuTemplate = menuTemplate;
     logger.info("Tray menu updated successfully");
   } catch (error) {
     logger.error("Error updating tray menu:", error);
@@ -677,4 +893,6 @@ module.exports = {
   updateTrayMenu,
   pollAdbDevices,
   updateTrayAdbDevices,
+  syncTrayPairedDevices,
+  destroyTrayMenuWindows,
 };
