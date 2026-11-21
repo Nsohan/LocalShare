@@ -85,7 +85,11 @@ ipcRenderer.on("devices:pair-progress", (event, progress) => {
 });
 
 ipcRenderer.on("dashboard:clipboard-received", (event, data) => {
-  showToast(`📋 Copied to clipboard: "${data.preview}"`);
+  if (data && data.directPaste) {
+    showToast(`📋 Pasted to active window: "${data.preview}"`);
+  } else {
+    showToast(`📋 Copied to clipboard: "${data.preview}"`);
+  }
 });
 
 // Legacy backward compatibility

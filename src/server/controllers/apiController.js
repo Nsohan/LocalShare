@@ -106,7 +106,24 @@ function copyToClipboard(req, res) {
   let text = "";
 
   if (typeof req.body === "string") {
-    text = req.body;
+    const raw = req.body;
+    const trimmed = raw.trim();
+    if (trimmed.startsWith("{") && trimmed.endsWith("}")) {
+      try {
+        const parsed = JSON.parse(trimmed);
+        if (parsed && typeof parsed.text === "string") {
+          text = parsed.text;
+        } else if (parsed && typeof parsed.content === "string") {
+          text = parsed.content;
+        } else {
+          text = raw;
+        }
+      } catch {
+        text = raw;
+      }
+    } else {
+      text = raw;
+    }
   } else if (req.body && typeof req.body.text === "string") {
     text = req.body.text;
   } else if (req.body && typeof req.body.content === "string") {
@@ -116,10 +133,14 @@ function copyToClipboard(req, res) {
   }
 
   if (typeof text !== "string" || text.trim() === "") {
-    return res.status(400).json({
-      success: false,
-      error: 'No text provided. Send JSON { "text": "..." }, plain text, or ?text=...',
-    });
+    if (req.query && req.query.format === "json") {
+      return res.status(400).json({
+        success: false,
+        error: 'No text provided. Send plain text, JSON { "text": "..." }, or ?text=...',
+      });
+    }
+    res.setHeader("Content-Type", "text/plain; charset=utf-8");
+    return res.status(400).send('Error: No text provided. Send plain text, or ?text=...');
   }
 
   // Forward to Electron main process via child-process IPC
@@ -136,12 +157,19 @@ function copyToClipboard(req, res) {
 
   const preview = text.length > 50 ? text.slice(0, 50) + "..." : text;
 
-  res.json({
-    success: true,
-    message: "Text copied to host clipboard!",
-    length: text.length,
-    preview,
-  });
+  // If explicit JSON format requested via query param
+  if (req.query && req.query.format === "json") {
+    return res.json({
+      success: true,
+      message: "Text copied to host clipboard!",
+      length: text.length,
+      preview,
+    });
+  }
+
+  // Direct plain text response (no JSON format)
+  res.setHeader("Content-Type", "text/plain; charset=utf-8");
+  return res.status(200).send(text);
 }
 
 const authorizedPairingKeys = new Set();

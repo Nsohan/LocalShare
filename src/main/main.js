@@ -91,6 +91,65 @@ function showAppNotification(options) {
 }
 
 /**
+ * Locate paste.vbs helper script for direct paste simulation
+ */
+function getPasteScriptPath() {
+  const candidates = [
+    path.join(process.resourcesPath || "", "bin", "paste.vbs"),
+    path.join(__dirname, "../../bin", "paste.vbs"),
+    path.join(process.cwd(), "bin", "paste.vbs"),
+  ];
+  for (const c of candidates) {
+    if (fs.existsSync(c)) return c;
+  }
+  return null;
+}
+
+/**
+ * Simulate Ctrl+V keypress in active Windows application
+ */
+function triggerDirectPaste() {
+  if (process.platform === "win32") {
+    const scriptPath = getPasteScriptPath();
+    if (scriptPath) {
+      try {
+        const child = cp.spawn("wscript.exe", ["//nologo", scriptPath], {
+          detached: true,
+          stdio: "ignore",
+          windowsHide: true,
+        });
+        child.unref();
+        return;
+      } catch (spawnErr) {
+        logger.warn("wscript paste failed, falling back to powershell:", spawnErr.message);
+      }
+    }
+
+    try {
+      const child = cp.spawn(
+        "powershell.exe",
+        [
+          "-NoProfile",
+          "-NonInteractive",
+          "-WindowStyle",
+          "Hidden",
+          "-Command",
+          "$ws = New-Object -ComObject WScript.Shell; Start-Sleep -Milliseconds 50; $ws.SendKeys('^v')",
+        ],
+        {
+          detached: true,
+          stdio: "ignore",
+          windowsHide: true,
+        }
+      );
+      child.unref();
+    } catch (psErr) {
+      logger.error("PowerShell direct paste failed:", psErr.message);
+    }
+  }
+}
+
+/**
  * Focus dashboard and switch to a specific tab
  */
 function navigateDashboard(tab = "files") {
@@ -484,11 +543,20 @@ async function startServer(filePaths = [], port = null) {
         );
         clipboard.writeText(msg.text);
 
+        const isDirectPaste = getConfig("directPaste") === true;
+        if (isDirectPaste) {
+          triggerDirectPaste();
+        }
+
         const preview =
           msg.text.length > 60 ? msg.text.slice(0, 60) + "..." : msg.text;
         showAppNotification({
-          title: "LocalShare - Copied to Clipboard",
-          body: `"${preview}" (Ready to Ctrl+V)`,
+          title: isDirectPaste
+            ? "LocalShare - Pasted to Active Window"
+            : "LocalShare - Copied to Clipboard",
+          body: isDirectPaste
+            ? `"${preview}" (Pasted directly)`
+            : `"${preview}" (Ready to Ctrl+V)`,
         });
 
         const win = getDashboardWindow();
@@ -497,6 +565,7 @@ async function startServer(filePaths = [], port = null) {
             text: msg.text,
             preview,
             length: msg.text.length,
+            directPaste: isDirectPaste,
           });
         }
       } else if (msg && msg.type === "custom-notification") {
@@ -1498,6 +1567,13 @@ if (!gotTheLock) {
     logger.info("IPC: Getting settings");
     const config = getConfig();
     event.sender.send("settings:current", config);
+  });
+
+  // Direct toggle for clipboard auto-paste
+  ipcMain.on("settings:update-direct-paste", (event, enabled) => {
+    logger.info("IPC: update-direct-paste", enabled);
+    setConfig("directPaste", !!enabled);
+    broadcastDashboardState();
   });
 
   // Save settings including tray synchronization

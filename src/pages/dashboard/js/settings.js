@@ -9,6 +9,7 @@ function populateSettings(config) {
   const setAutostart = document.getElementById("setAutostart");
   const setOpenDashboard = document.getElementById("setOpenDashboard");
   const setNotifications = document.getElementById("setNotifications");
+  const setDirectPaste = document.getElementById("setDirectPaste");
   const setPort = document.getElementById("setPort");
   const setTheme = document.getElementById("setTheme");
   const setDeviceAutoConnect = document.getElementById("setDeviceAutoConnect");
@@ -21,6 +22,7 @@ function populateSettings(config) {
   if (setAutostart) setAutostart.checked = config.autostart !== false;
   if (setOpenDashboard) setOpenDashboard.checked = config.openDashboardAtStart !== false;
   if (setNotifications) setNotifications.checked = config.notifications !== false;
+  if (setDirectPaste) setDirectPaste.checked = config.directPaste === true;
   if (setPort) setPort.value = config.port || 5199;
   if (setTheme) {
     setTheme.value = config.theme || "dark";
@@ -46,6 +48,7 @@ function initSettings() {
   const setAutostart = document.getElementById("setAutostart");
   const setOpenDashboard = document.getElementById("setOpenDashboard");
   const setNotifications = document.getElementById("setNotifications");
+  const setDirectPaste = document.getElementById("setDirectPaste");
   const setPort = document.getElementById("setPort");
   const setTheme = document.getElementById("setTheme");
   const setDeviceAutoConnect = document.getElementById("setDeviceAutoConnect");
@@ -115,6 +118,7 @@ function initSettings() {
         autostart: setAutostart.checked,
         openDashboardAtStart: setOpenDashboard.checked,
         notifications: setNotifications.checked,
+        directPaste: setDirectPaste ? setDirectPaste.checked : false,
         port: newPort,
         theme: setTheme.value,
         deviceAutoConnect: setDeviceAutoConnect

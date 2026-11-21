@@ -117,9 +117,18 @@ try {
     res.status(500).send("Server error");
   });
 
-  app.use(express.json());
-  app.use(express.text({ type: ["text/*", "text/plain"] }));
-  app.use(express.urlencoded({ extended: true }));
+  // For clipboard/text endpoints, accept raw text regardless of Content-Type (prevents malformed JSON 400 errors)
+  app.use(["/api/clipboard", "/api/text"], (req, res, next) => {
+    if (!req.headers["content-type"]) {
+      req.headers["content-type"] = "text/plain";
+    }
+    next();
+  });
+  app.use(["/api/clipboard", "/api/text"], express.text({ type: "*/*", limit: "50mb" }));
+
+  app.use(express.json({ limit: "50mb" }));
+  app.use(express.text({ type: ["text/*", "text/plain"], limit: "50mb" }));
+  app.use(express.urlencoded({ extended: true, limit: "50mb" }));
 
   // Set up static file serving - use absolute paths
   const publicDir = path.join(__dirname, "../../public");

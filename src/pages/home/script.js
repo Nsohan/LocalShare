@@ -778,21 +778,21 @@ if (sendClipboardBtn) {
     fetch("/api/clipboard", {
       method: "POST",
       headers: {
-        "Content-Type": "application/json",
+        "Content-Type": "text/plain; charset=utf-8",
       },
-      body: JSON.stringify({ text }),
+      body: text,
     })
-      .then((res) => res.json())
-      .then((data) => {
+      .then(async (res) => {
         sendClipboardBtn.disabled = false;
         sendClipboardBtn.innerHTML = defaultBtnHtml;
 
-        if (data.success) {
+        if (res.ok) {
           clipboardInput.value = "";
           closeSendTextModal();
-          showToast("✓ Copied to PC! Press Ctrl+V to paste.");
+          showToast("✓ Copied to PC! (Ready to paste)");
         } else {
-          showToast("Error: " + (data.error || "Failed to copy"));
+          const errText = await res.text();
+          showToast("Error: " + (errText || "Failed to copy"));
         }
       })
       .catch((err) => {

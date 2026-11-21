@@ -30,6 +30,7 @@ const CONFIG_FILE = path.join(getUserDataPath(), "config.json");
 const DEFAULT_CONFIG = {
   autostart: true,
   openDashboardAtStart: true,
+  directPaste: false,
   port: 5199,
   notifications: true,
   lastFiles: [],

@@ -51,12 +51,20 @@
       <!-- Endpoint 4 -->
       <div class="api-card">
         <div class="api-card-header">
-          <span class="http-badge post">POST</span>
-          <span class="api-route">/api/clipboard</span>
-          <span class="api-desc">Send text to host PC clipboard (instantly paste with Ctrl+V)</span>
+          <div class="api-route-group">
+            <span class="http-badge post">POST</span>
+            <span class="api-route">/api/clipboard</span>
+          </div>
+          <div class="api-header-actions">
+            <span class="api-desc" id="apiClipboardDesc">Direct Paste: OFF (Ctrl+V)</span>
+            <label class="toggle-switch-compact" title="Direct Paste: When ON, incoming text will paste automatically at cursor without Ctrl+V">
+              <input type="checkbox" id="apiDirectPasteToggle" />
+              <span class="compact-slider"></span>
+            </label>
+          </div>
         </div>
         <div class="api-code-block">
-          <pre><code>curl -X POST -H "Content-Type: application/json" -d '{"text":"Hello from phone!"}' http://<span class="api-host-token">localhost:5199</span>/api/clipboard</code></pre>
+          <pre><code>curl -X POST -H "Content-Type: text/plain" --data-binary "Hello from phone!" http://<span class="api-host-token">localhost:5199</span>/api/clipboard</code></pre>
         </div>
       </div>
 
